@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3734b2b176bce514aa68bb4a7efea039
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 272963
+  packageName: Better Hierarchy
+  packageVersion: 1.0.2
+  assetPath: Assets/Plugins/Better Hierarchy/Demo Scene/Prefabs/Hierarchy Sample.prefab
+  uploadId: 1023948
