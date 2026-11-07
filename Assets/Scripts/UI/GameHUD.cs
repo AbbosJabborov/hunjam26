@@ -70,6 +70,11 @@ namespace Shift.UI
         [SerializeField] private CanvasGroup crosshairGroup;
         [SerializeField] private bool showCrosshairOnlyInFPS = true;
 
+        [Header("Platformer Crosshair Cursor")]
+        [Tooltip("Custom cursor texture used as the crosshair in 2D platformer mode to aim the grapple hook")]
+        [SerializeField] private Texture2D platformerCursorTexture;
+        [SerializeField] private Vector2 cursorHotspot = new Vector2(32f, 32f);
+
         [Tooltip("Hit marker indicator (X or flash on successful bullet impact)")]
         [SerializeField] private GameObject hitMarkerRoot;
         [SerializeField] private CanvasGroup hitMarkerGroup;
@@ -164,10 +169,19 @@ namespace Shift.UI
             {
                 UpdateHealthDisplay(_playerHealth.CurrentHealth, _playerHealth.MaxHealth);
             }
+
+            UpdateCursorMode(DimensionManager.Instance != null ? DimensionManager.Instance.CurrentDimension : DimensionType.Platformer);
+        }
+
+        private void OnDisable()
+        {
+            ResetCursorToDefault();
         }
 
         private void OnDestroy()
         {
+            ResetCursorToDefault();
+
             if (DimensionManager.Instance != null)
             {
                 DimensionManager.Instance.OnDimensionChanged -= HandleDimensionChanged;
@@ -250,6 +264,36 @@ namespace Shift.UI
         private void HandleDimensionChanged(DimensionType dimension)
         {
             UpdateDimensionDisplay(dimension);
+            UpdateCursorMode(dimension);
+        }
+
+        public void UpdateCursorMode(DimensionType dimension)
+        {
+            if (dimension == DimensionType.FPS)
+            {
+                Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                Cursor.visible = false;
+                Cursor.lockState = CursorLockMode.Locked;
+            }
+            else
+            {
+                if (platformerCursorTexture != null)
+                {
+                    Vector2 hotspot = cursorHotspot.sqrMagnitude > 0f
+                        ? cursorHotspot
+                        : new Vector2(platformerCursorTexture.width / 2f, platformerCursorTexture.height / 2f);
+                    Cursor.SetCursor(platformerCursorTexture, hotspot, CursorMode.Auto);
+                }
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
+            }
+        }
+
+        public void ResetCursorToDefault()
+        {
+            Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
         }
 
         public void UpdateDimensionDisplay(DimensionType dimension)
@@ -405,6 +449,8 @@ namespace Shift.UI
 
         private void HandleLevelCompleted(float finalTime)
         {
+            ResetCursorToDefault();
+
             if (stageClearedPanel != null) stageClearedPanel.SetActive(true);
             if (stageClearedGroup != null)
             {
@@ -430,6 +476,8 @@ namespace Shift.UI
 
         private void HandlePlayerDied()
         {
+            ResetCursorToDefault();
+
             if (deathPanel != null) deathPanel.SetActive(true);
             if (deathGroup != null)
             {

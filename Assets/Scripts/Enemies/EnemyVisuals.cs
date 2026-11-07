@@ -181,6 +181,7 @@ namespace Shift.Enemies
                     spriteRenderer.sprite = platformerSprite;
                 }
 
+                transform.rotation = Quaternion.identity;
                 if (visualTransform != null)
                 {
                     visualTransform.localRotation = Quaternion.identity;
@@ -192,31 +193,38 @@ namespace Shift.Enemies
 
         private void LateUpdate()
         {
-            if (visualTransform == null && spriteRenderer == null) return;
-
-            Transform targetTransform = visualTransform != null ? visualTransform : transform;
+            if (spriteRenderer == null) return;
 
             if (_isFps)
             {
-                // FPS Mode: Billboard behavior - face active camera
-                Camera cam = CameraManager.Instance != null ? CameraManager.Instance.ActiveCamera : Camera.main;
-                if (cam != null)
+                // Perspective Mode: rotate enemy to face the player directly
+                if (_playerTransform == null) FindPlayer();
+                if (_playerTransform != null)
                 {
-                    Vector3 toCam = cam.transform.position - targetTransform.position;
+                    Vector3 toPlayer = _playerTransform.position - transform.position;
                     if (lockVerticalBillboard)
                     {
-                        toCam.y = 0f;
+                        toPlayer.y = 0f;
                     }
 
-                    if (toCam.sqrMagnitude > 0.001f)
+                    if (toPlayer.sqrMagnitude > 0.001f)
                     {
-                        targetTransform.rotation = Quaternion.LookRotation(-toCam.normalized, Vector3.up);
+                        // In Unity SpriteRenderer front normal points along -Z, so +Z forward looks away from player
+                        transform.rotation = Quaternion.LookRotation(-toPlayer.normalized, Vector3.up);
                     }
                 }
+
+                if (visualTransform != null && visualTransform != transform)
+                {
+                    visualTransform.localRotation = Quaternion.identity;
+                }
+
+                spriteRenderer.flipX = false;
             }
             else
             {
-                // Platformer Mode: Flat to 2D plane, flip towards player horizontally
+                // Platformer Mode: Flat to 2D plane (no 3D rotation), flip towards player horizontally
+                transform.rotation = Quaternion.identity;
                 if (visualTransform != null && visualTransform != transform)
                 {
                     visualTransform.localRotation = Quaternion.identity;
@@ -235,9 +243,11 @@ namespace Shift.Enemies
                 if (_playerTransform == null) return;
             }
 
-            // Face towards player along X
-            bool playerIsLeft = _playerTransform.position.x < transform.position.x;
-            spriteRenderer.flipX = playerIsLeft;
+            // Default side sprite has head facing LEFT.
+            // When player is to the RIGHT of enemy, flipX = true to face right towards player.
+            // When player is to the LEFT of enemy, flipX = false to face left towards player.
+            bool playerIsRight = _playerTransform.position.x > transform.position.x;
+            spriteRenderer.flipX = playerIsRight;
         }
 
         /// <summary>

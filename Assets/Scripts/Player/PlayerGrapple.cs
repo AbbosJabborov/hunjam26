@@ -79,15 +79,40 @@ namespace Shift.Player
             }
         }
 
+        private void OnEnable()
+        {
+            if (DimensionManager.Instance != null)
+            {
+                DimensionManager.Instance.OnDimensionChanged += HandleDimensionChanged;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (DimensionManager.Instance != null)
+            {
+                DimensionManager.Instance.OnDimensionChanged -= HandleDimensionChanged;
+            }
+
+            if (_isSwinging)
+            {
+                StopSwing();
+            }
+        }
+
         private void Start()
         {
             if (_input == null) _input = _playerController.InputReader;
 
             if (_input != null)
             {
-                _input.OnGrapplePressed += HandleGrapplePressed;
-                _input.OnGrappleReleased += HandleGrappleReleased;
                 _input.OnJumpPressed += HandleJumpWhileSwinging;
+            }
+
+            if (DimensionManager.Instance != null)
+            {
+                DimensionManager.Instance.OnDimensionChanged -= HandleDimensionChanged;
+                DimensionManager.Instance.OnDimensionChanged += HandleDimensionChanged;
             }
         }
 
@@ -95,9 +120,21 @@ namespace Shift.Player
         {
             if (_input != null)
             {
-                _input.OnGrapplePressed -= HandleGrapplePressed;
-                _input.OnGrappleReleased -= HandleGrappleReleased;
                 _input.OnJumpPressed -= HandleJumpWhileSwinging;
+            }
+
+            if (DimensionManager.Instance != null)
+            {
+                DimensionManager.Instance.OnDimensionChanged -= HandleDimensionChanged;
+            }
+        }
+
+        private void HandleDimensionChanged(DimensionType dimension)
+        {
+            // Grapple hook cannot exist in 3D perspective mode
+            if (dimension == DimensionType.FPS && _isSwinging)
+            {
+                StopSwing();
             }
         }
 
@@ -108,21 +145,40 @@ namespace Shift.Player
                 _lastMoveDirX = Mathf.Sign(_input.MoveInput.x);
             }
 
-            // Direct keyboard polling ensures instant response
-            var kb = Keyboard.current;
-            if (kb != null)
+            bool isPlatformer = DimensionManager.Instance == null || DimensionManager.Instance.IsPlatformer;
+
+            if (isPlatformer)
             {
-                if (kb.eKey.wasPressedThisFrame && !_isSwinging)
+                var mouse = Mouse.current;
+                var kb = Keyboard.current;
+
+                // Left Mouse Button is the primary grappling hook control; 'E' supported as secondary
+                bool grapplePressed = (mouse != null && mouse.leftButton.wasPressedThisFrame)
+                                   || (kb != null && kb.eKey.wasPressedThisFrame);
+                bool grappleReleased = (mouse != null && mouse.leftButton.wasReleasedThisFrame)
+                                    || (kb != null && kb.eKey.wasReleasedThisFrame);
+
+                // Ignore mouse click if pointer is over UI elements
+                if (grapplePressed && mouse != null && mouse.leftButton.wasPressedThisFrame)
+                {
+                    if (UnityEngine.EventSystems.EventSystem.current != null &&
+                        UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                    {
+                        grapplePressed = false;
+                    }
+                }
+
+                if (grapplePressed && !_isSwinging)
                 {
                     HandleGrapplePressed();
                 }
-                else if (kb.eKey.wasReleasedThisFrame && _isSwinging)
+                else if (grappleReleased && _isSwinging)
                 {
                     HandleGrappleReleased();
                 }
 
-                // Reel in/out while swinging
-                if (_isSwinging)
+                // Reel in/out while swinging (W/S keys)
+                if (_isSwinging && kb != null)
                 {
                     if (kb.wKey.isPressed)
                     {
@@ -132,6 +188,14 @@ namespace Shift.Player
                     {
                         _currentRopeLength = Mathf.Min(maxDistance, _currentRopeLength + reelSpeed * Time.unscaledDeltaTime);
                     }
+                }
+            }
+            else
+            {
+                // In perspective mode, grappling hook cannot be used; immediately release if swinging
+                if (_isSwinging)
+                {
+                    StopSwing();
                 }
             }
 
@@ -154,6 +218,12 @@ namespace Shift.Player
             if (_isSwinging)
             {
                 StopSwing();
+                return;
+            }
+
+            // Grappling hook is strictly restricted to 2D platformer mode
+            if (DimensionManager.Instance != null && !DimensionManager.Instance.IsPlatformer)
+            {
                 return;
             }
 
@@ -186,56 +256,45 @@ namespace Shift.Player
 
         private void TryLaunchSwing()
         {
-            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
+            // Grappling hook is strictly disabled in 3D perspective mode
+            if (DimensionManager.Instance != null && !DimensionManager.Instance.IsPlatformer)
+            {
+                return;
+            }
+
             Vector3 rayOrigin = transform.position + Vector3.up * 1.0f;
             Vector3 rayDir = Vector3.zero;
 
-            if (isFps)
-            {
-                Camera fpsCam = CameraManager.Instance != null ? CameraManager.Instance.FPSCamera : Camera.main;
-                if (fpsCam != null)
-                {
-                    rayOrigin = fpsCam.transform.position;
-                    rayDir = fpsCam.transform.forward;
-                }
-                else
-                {
-                    rayDir = transform.forward;
-                }
-            }
-            else
-            {
-                // In 2D Platformer mode:
-                // 1. Mouse cursor aiming
-                var mouse = Mouse.current;
-                Camera platCam = CameraManager.Instance != null ? CameraManager.Instance.PlatformerCamera : Camera.main;
+            // In 2D Platformer mode:
+            // 1. Mouse cursor aiming (tracks custom crosshair)
+            var mouse = Mouse.current;
+            Camera platCam = CameraManager.Instance != null ? CameraManager.Instance.PlatformerCamera : Camera.main;
 
-                if (mouse != null && platCam != null)
-                {
-                    Vector2 mouseScreenPos = mouse.position.ReadValue();
-                    Ray mouseRay = platCam.ScreenPointToRay(mouseScreenPos);
-                    Plane zPlane = new Plane(Vector3.forward, new Vector3(0f, 0f, transform.position.z));
+            if (mouse != null && platCam != null)
+            {
+                Vector2 mouseScreenPos = mouse.position.ReadValue();
+                Ray mouseRay = platCam.ScreenPointToRay(mouseScreenPos);
+                Plane zPlane = new Plane(Vector3.forward, new Vector3(0f, 0f, transform.position.z));
 
-                    if (zPlane.Raycast(mouseRay, out float enter))
+                if (zPlane.Raycast(mouseRay, out float enter))
+                {
+                    Vector3 worldPos = mouseRay.GetPoint(enter);
+                    Vector3 dirToMouse = worldPos - rayOrigin;
+                    dirToMouse.z = 0f;
+
+                    // Shoot in mouse direction if cursor is not directly on top of the player's core
+                    if (dirToMouse.sqrMagnitude > 0.25f)
                     {
-                        Vector3 worldPos = mouseRay.GetPoint(enter);
-                        Vector3 dirToMouse = worldPos - rayOrigin;
-                        dirToMouse.z = 0f;
-
-                        // Only use mouse aim if cursor is positioned above or around player
-                        if (dirToMouse.sqrMagnitude > 1.2f && dirToMouse.y > -0.2f)
-                        {
-                            rayDir = dirToMouse.normalized;
-                        }
+                        rayDir = dirToMouse.normalized;
                     }
                 }
+            }
 
-                // 2. Fallback: diagonal up-forward in movement direction (great for natural swinging)
-                if (rayDir == Vector3.zero)
-                {
-                    float aimX = _input != null && Mathf.Abs(_input.MoveInput.x) > 0.1f ? Mathf.Sign(_input.MoveInput.x) : _lastMoveDirX;
-                    rayDir = new Vector3(aimX * 0.8f, 0.75f, 0f).normalized;
-                }
+            // 2. Fallback: diagonal up-forward in movement direction (great for natural swinging if mouse unavailable)
+            if (rayDir == Vector3.zero)
+            {
+                float aimX = _input != null && Mathf.Abs(_input.MoveInput.x) > 0.1f ? Mathf.Sign(_input.MoveInput.x) : _lastMoveDirX;
+                rayDir = new Vector3(aimX * 0.8f, 0.75f, 0f).normalized;
             }
 
             if (_playerColliders == null || _playerColliders.Length == 0)

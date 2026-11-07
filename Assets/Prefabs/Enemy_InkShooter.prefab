@@ -151,8 +151,8 @@ MonoBehaviour:
   visualOffset: {x: 0, y: -1, z: 0}
   flashColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   flashDuration: 0.08
-  platformerSprite: {fileID: 21300000, guid: 1d74c90a859854ee0a8011d95c627947, type: 3}
-  fpsSprite: {fileID: 21300000, guid: 96bd91a217e9f4320a0cc3187260b268, type: 3}
+  platformerSprite: {fileID: -1842689072, guid: d011864085cf14c53a3b96e46f42ecc3, type: 3}
+  fpsSprite: {fileID: 1857393053, guid: a5344b5ff65baeb45a5c408a89a135c2, type: 3}
 --- !u!1 &8890914882067223640
 GameObject:
   m_ObjectHideFlags: 0

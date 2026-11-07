@@ -1,4 +1,5 @@
 using UnityEngine;
+using Shift.Core;
 using Shift.Combat;
 using Shift.Player;
 
@@ -85,13 +86,22 @@ namespace Shift.Enemies
 
         private void AimAtPlayer()
         {
-            Vector3 targetPos = _playerTarget.position + Vector3.up * 1.0f; // Aim at chest height
-            Vector3 dir = (targetPos - transform.position).normalized;
-
-            if (dir != Vector3.zero)
+            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
+            if (isFps)
             {
-                Quaternion targetRot = Quaternion.LookRotation(dir);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
+                // In perspective mode, rotate enemy to face the player directly
+                Vector3 toPlayer = _playerTarget.position - transform.position;
+                toPlayer.y = 0f; // Keep upright
+                if (toPlayer.sqrMagnitude > 0.001f)
+                {
+                    Quaternion targetRot = Quaternion.LookRotation(-toPlayer.normalized, Vector3.up);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
+                }
+            }
+            else
+            {
+                // In platformer mode, enemy stays locked to 2D plane (no 3D rotation)
+                transform.rotation = Quaternion.identity;
             }
         }
 

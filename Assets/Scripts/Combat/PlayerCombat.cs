@@ -53,6 +53,10 @@ namespace Shift.Combat
 
         private void Update()
         {
+            // Shooting is strictly an FPV/FPS ability; disabled in 2D platformer mode
+            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
+            if (!isFps) return;
+
             if (_input != null && (_input.ShootTriggered || _input.ShootHeld))
             {
                 TryShoot();
@@ -61,6 +65,13 @@ namespace Shift.Combat
 
         public bool TryShoot()
         {
+            // Shooting is strictly allowed only in 3D perspective (FPV) mode
+            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
+            if (!isFps)
+            {
+                return false;
+            }
+
             // Use unscaledTime so fire rate remains responsive in slow motion
             if (Time.unscaledTime - _lastFireTime < (1f / fireRate))
             {
@@ -70,15 +81,7 @@ namespace Shift.Combat
             _lastFireTime = Time.unscaledTime;
             OnWeaponFired?.Invoke();
 
-            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
-            if (isFps)
-            {
-                PerformShotFPS();
-            }
-            else
-            {
-                PerformShotPlatformer();
-            }
+            PerformShotFPS();
 
             return true;
         }

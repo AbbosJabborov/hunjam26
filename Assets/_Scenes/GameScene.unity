@@ -751,6 +751,81 @@ Transform:
   - {fileID: 180402126}
   m_Father: {fileID: 1089080713}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &130675837
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 130675838}
+  - component: {fileID: 130675840}
+  - component: {fileID: 130675839}
+  m_Layer: 0
+  m_Name: Crosshair_Image
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &130675838
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 130675837}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1533255553}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 64, y: 64}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &130675839
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 130675837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: -1628836080, guid: 0a3f0edabcc1146d1a44636103fd047a, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 1
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &130675840
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 130675837}
+  m_CullTransparentMesh: 1
 --- !u!1 &165449720
 GameObject:
   m_ObjectHideFlags: 0
@@ -1098,7 +1173,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &214571355
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3032,8 +3107,8 @@ Transform:
   m_GameObject: {fileID: 556988509}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -115, y: 9, z: 20}
-  m_LocalScale: {x: 48, y: 20, z: 1}
+  m_LocalPosition: {x: -115, y: 13.5, z: 20}
+  m_LocalScale: {x: 100, y: 30, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1741246501}
@@ -3055,7 +3130,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &581625684
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3438,6 +3513,8 @@ MonoBehaviour:
   crosshairRoot: {fileID: 1533255552}
   crosshairGroup: {fileID: 1533255554}
   showCrosshairOnlyInFPS: 1
+  platformerCursorTexture: {fileID: 2800000, guid: 23340ef0b4e354667a271fe88fe70774, type: 3}
+  cursorHotspot: {x: 32, y: 32}
   hitMarkerRoot: {fileID: 1772094534}
   hitMarkerGroup: {fileID: 1772094536}
   hitMarkerImage: {fileID: 1742562563}
@@ -4386,8 +4463,8 @@ MonoBehaviour:
   visualOffset: {x: 0, y: -1, z: 0}
   flashColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   flashDuration: 0.08
-  platformerSprite: {fileID: 21300000, guid: 1d74c90a859854ee0a8011d95c627947, type: 3}
-  fpsSprite: {fileID: 21300000, guid: 96bd91a217e9f4320a0cc3187260b268, type: 3}
+  platformerSprite: {fileID: -1842689072, guid: d011864085cf14c53a3b96e46f42ecc3, type: 3}
+  fpsSprite: {fileID: 1857393053, guid: a5344b5ff65baeb45a5c408a89a135c2, type: 3}
 --- !u!1 &806740331
 GameObject:
   m_ObjectHideFlags: 0
@@ -5616,8 +5693,8 @@ Transform:
   m_GameObject: {fileID: 1015286967}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -115, y: 25, z: 25}
-  m_LocalScale: {x: 48, y: 20, z: 1}
+  m_LocalPosition: {x: -115, y: 20, z: 25}
+  m_LocalScale: {x: 48, y: 15, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1741246501}
@@ -5743,8 +5820,8 @@ Transform:
   m_GameObject: {fileID: 1052685155}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -115, y: 9.96, z: 30}
-  m_LocalScale: {x: 48, y: 20, z: 1}
+  m_LocalPosition: {x: -115, y: 10, z: 30}
+  m_LocalScale: {x: 48, y: 24, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1741246501}
@@ -7020,7 +7097,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.8666667, g: 0.8666667, b: 0.8666667, a: 1}
+  m_BackGroundColor: {r: 0.843, g: 0.808, b: 0.698, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -8336,6 +8413,7 @@ RectTransform:
   - {fileID: 1922019113}
   - {fileID: 1819432311}
   - {fileID: 214571355}
+  - {fileID: 130675838}
   - {fileID: 1772094535}
   m_Father: {fileID: 602593206}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -8655,6 +8733,9 @@ MonoBehaviour:
   platformerFollowSmoothTime: 0.15
   orthographicSize: 12
   horizontalLookAhead: 2.5
+  platformerLockVerticalOnJump: 1
+  platformerVerticalDeadzone: 4
+  platformerVerticalSmoothTime: 0.35
   defaultFpsFov: 80
   mouseSensitivity: 2
   minPitch: -89
@@ -9535,41 +9616,44 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shift.Environment.ParallaxBackground
   targetCamera: {fileID: 1381596594}
-  verticalFollowRatio: 1
-  planeWidth: 48
-  planeHeight: 20
   backgroundLayer:
     name: Far Background
     layerRenderer: {fileID: 1052685156}
     parallaxX: 0.003
-    parallaxY: 0
     autoScrollSpeedX: 0
-    autoScrollSpeedY: 0
     tiling: {x: 2, y: 1}
     baseOffset: {x: 0, y: 0}
-    yOffset: -0.04
+    planeWidth: 48
+    planeHeight: 24
+    followCameraY: 1
+    verticalRatio: 1
+    yAnchor: 0
     zDepth: 30
   cloudsLayer:
     name: Mid Clouds
     layerRenderer: {fileID: 1015286968}
     parallaxX: 0.008
-    parallaxY: 0
-    autoScrollSpeedX: 0.008
-    autoScrollSpeedY: 0
+    autoScrollSpeedX: 0.02
     tiling: {x: 2, y: 1}
     baseOffset: {x: 0, y: 0.05}
-    yOffset: 15
+    planeWidth: 48
+    planeHeight: 15
+    followCameraY: 1
+    verticalRatio: 1
+    yAnchor: 10
     zDepth: 25
   foregroundLayer:
     name: Near Foreground
     layerRenderer: {fileID: 556988510}
     parallaxX: 0.018
-    parallaxY: 0
     autoScrollSpeedX: 0
-    autoScrollSpeedY: 0
     tiling: {x: 2.5, y: 1}
     baseOffset: {x: 0, y: -0.05}
-    yOffset: -1
+    planeWidth: 100
+    planeHeight: 30
+    followCameraY: 0
+    verticalRatio: 1
+    yAnchor: 13.5
     zDepth: 20
 --- !u!4 &1741246501
 Transform:
@@ -10296,7 +10380,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1819432311
 RectTransform:
   m_ObjectHideFlags: 0
@@ -10887,7 +10971,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1922019113
 RectTransform:
   m_ObjectHideFlags: 0
@@ -11399,8 +11483,8 @@ MonoBehaviour:
   visualOffset: {x: 0, y: -1, z: 0}
   flashColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   flashDuration: 0.08
-  platformerSprite: {fileID: 21300000, guid: 1d74c90a859854ee0a8011d95c627947, type: 3}
-  fpsSprite: {fileID: 21300000, guid: 96bd91a217e9f4320a0cc3187260b268, type: 3}
+  platformerSprite: {fileID: -1842689072, guid: d011864085cf14c53a3b96e46f42ecc3, type: 3}
+  fpsSprite: {fileID: 1857393053, guid: a5344b5ff65baeb45a5c408a89a135c2, type: 3}
 --- !u!1 &2039996439
 GameObject:
   m_ObjectHideFlags: 0
@@ -11746,8 +11830,8 @@ MonoBehaviour:
   visualOffset: {x: 0, y: -1, z: 0}
   flashColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   flashDuration: 0.08
-  platformerSprite: {fileID: 21300000, guid: 1d74c90a859854ee0a8011d95c627947, type: 3}
-  fpsSprite: {fileID: 21300000, guid: 96bd91a217e9f4320a0cc3187260b268, type: 3}
+  platformerSprite: {fileID: -1842689072, guid: d011864085cf14c53a3b96e46f42ecc3, type: 3}
+  fpsSprite: {fileID: 1857393053, guid: a5344b5ff65baeb45a5c408a89a135c2, type: 3}
 --- !u!1 &2098788354
 GameObject:
   m_ObjectHideFlags: 0
@@ -11891,7 +11975,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2121670927
 RectTransform:
   m_ObjectHideFlags: 0
@@ -12000,6 +12084,10 @@ PrefabInstance:
     - target: {fileID: 5551877421339113702, guid: c6874e04a56264bcc8c585eb0d810dac, type: 3}
       propertyPath: m_Name
       value: Enemy_Shooter_3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7211292719733267275, guid: c6874e04a56264bcc8c585eb0d810dac, type: 3}
+      propertyPath: m_FlipX
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

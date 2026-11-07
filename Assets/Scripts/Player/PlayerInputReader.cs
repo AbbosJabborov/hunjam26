@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Shift.Core;
 
 namespace Shift.Player
 {
@@ -187,27 +188,28 @@ namespace Shift.Player
                 }
             }
 
-            // --- Shoot ---
+            // --- Shoot (Only in 3D Perspective Mode) ---
+            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
             if (_shootAction != null && _shootAction.enabled)
             {
-                if (_shootAction.WasPressedThisFrame())
+                if (_shootAction.WasPressedThisFrame() && isFps)
                 {
                     ShootTriggered = true;
                     OnShootPressed?.Invoke();
                 }
-                ShootHeld = _shootAction.IsPressed();
+                ShootHeld = _shootAction.IsPressed() && isFps;
             }
             else
             {
                 var mouse = Mouse.current;
                 if (mouse != null)
                 {
-                    if (mouse.leftButton.wasPressedThisFrame)
+                    if (mouse.leftButton.wasPressedThisFrame && isFps)
                     {
                         ShootTriggered = true;
                         OnShootPressed?.Invoke();
                     }
-                    ShootHeld = mouse.leftButton.isPressed;
+                    ShootHeld = mouse.leftButton.isPressed && isFps;
                 }
             }
 
@@ -222,21 +224,28 @@ namespace Shift.Player
                 SlideHeld = kb != null && (kb.leftCtrlKey.isPressed || kb.cKey.isPressed);
             }
 
-            // --- Grapple (E key) ---
+            // --- Grapple (Left Mouse in Platformer / E key) ---
+            bool isPlatformer = DimensionManager.Instance == null || DimensionManager.Instance.IsPlatformer;
             var kbDevice = Keyboard.current;
-            if (kbDevice != null)
+            var mouseDevice = Mouse.current;
+
+            bool grappleDown = (isPlatformer && mouseDevice != null && mouseDevice.leftButton.wasPressedThisFrame)
+                            || (kbDevice != null && kbDevice.eKey.wasPressedThisFrame);
+            bool grappleUp = (isPlatformer && mouseDevice != null && mouseDevice.leftButton.wasReleasedThisFrame)
+                           || (kbDevice != null && kbDevice.eKey.wasReleasedThisFrame);
+            bool grappleHeld = (isPlatformer && mouseDevice != null && mouseDevice.leftButton.isPressed)
+                            || (kbDevice != null && kbDevice.eKey.isPressed);
+
+            if (grappleDown)
             {
-                if (kbDevice.eKey.wasPressedThisFrame)
-                {
-                    GrappleTriggered = true;
-                    OnGrapplePressed?.Invoke();
-                }
-                if (kbDevice.eKey.wasReleasedThisFrame)
-                {
-                    OnGrappleReleased?.Invoke();
-                }
-                GrappleHeld = kbDevice.eKey.isPressed;
+                GrappleTriggered = true;
+                OnGrapplePressed?.Invoke();
             }
+            if (grappleUp)
+            {
+                OnGrappleReleased?.Invoke();
+            }
+            GrappleHeld = grappleHeld;
 
             // --- Restart ---
             var keyboard = Keyboard.current;

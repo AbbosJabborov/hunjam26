@@ -29,6 +29,14 @@ namespace Shift.Cameras
         [SerializeField] private float orthographicSize = 7.5f;
         [SerializeField] private float horizontalLookAhead = 2.5f;
 
+        [Header("Platformer Vertical Follow")]
+        [Tooltip("When true, camera Y remains locked to ground elevation during jumps to prevent bobbing and exposed void.")]
+        [SerializeField] private bool platformerLockVerticalOnJump = true;
+        [Tooltip("Vertical deadzone above/below grounded height before camera follows airborne player.")]
+        [SerializeField] private float platformerVerticalDeadzone = 4.0f;
+        [Tooltip("Smooth time for vertical elevation changes between ledges.")]
+        [SerializeField] private float platformerVerticalSmoothTime = 0.35f;
+
         [Header("FPS Camera Settings")]
         [SerializeField] private float defaultFpsFov = 80f;
         [SerializeField] private float mouseSensitivity = 2.0f;
@@ -47,6 +55,11 @@ namespace Shift.Cameras
         private Vector3 _platformerFollowPosition;
         private Vector3 _platformerVelocity;
         private Rigidbody _playerRb;
+        private PlayerMovement _playerMovement;
+        private float _platformerGroundedY;
+        private float _platformerTargetY;
+        private float _platformerVerticalVelocity;
+        private float _currentLookAheadX;
         private float _fpsPitch;
         private float _fpsYaw = 90f; // Default facing +X (down the track towards goal)
 
@@ -80,6 +93,9 @@ namespace Shift.Cameras
         {
             if (playerTransform != null)
             {
+                _playerMovement = playerTransform.GetComponent<PlayerMovement>();
+                _platformerGroundedY = playerTransform.position.y;
+                _platformerTargetY = _platformerGroundedY;
                 _platformerFollowPosition = GetInstantPlatformerPosition();
                 if (platformerCamera != null)
                 {
@@ -374,6 +390,16 @@ namespace Shift.Cameras
                     }
                 }
             }
+
+            // Synchronize Parallax in the exact same frame for 0-latency jitter-free scrolling
+            if (Shift.Environment.ParallaxBackground.Instance != null)
+            {
+                Camera activeCam = ActiveCamera;
+                if (activeCam != null)
+                {
+                    Shift.Environment.ParallaxBackground.Instance.UpdateParallax(activeCam.transform.position, Time.time);
+                }
+            }
         }
 
         private Vector3 GetInstantPlatformerPosition()
@@ -386,9 +412,11 @@ namespace Shift.Cameras
                 lookAheadX = Mathf.Clamp(_playerRb.linearVelocity.x * 0.2f, -horizontalLookAhead, horizontalLookAhead);
             }
 
+            float yPos = platformerLockVerticalOnJump ? _platformerGroundedY : playerTransform.position.y;
+
             return new Vector3(
                 playerTransform.position.x + platformerOffset.x + lookAheadX,
-                playerTransform.position.y + platformerOffset.y,
+                yPos + platformerOffset.y,
                 playerTransform.position.z + platformerOffset.z
             );
         }
@@ -397,21 +425,69 @@ namespace Shift.Cameras
         {
             if (playerTransform == null) return;
 
-            if (_playerRb == null)
+            if (_playerRb == null) _playerRb = playerTransform.GetComponent<Rigidbody>();
+            if (_playerMovement == null) _playerMovement = playerTransform.GetComponent<PlayerMovement>();
+
+            // 1. Horizontal Tracking with smoothed look-ahead to eliminate physics velocity jitter
+            float targetLookAhead = 0f;
+            if (_playerRb != null)
             {
-                _playerRb = playerTransform.GetComponent<Rigidbody>();
+                targetLookAhead = Mathf.Clamp(_playerRb.linearVelocity.x * 0.2f, -horizontalLookAhead, horizontalLookAhead);
+            }
+            _currentLookAheadX = Mathf.MoveTowards(_currentLookAheadX, targetLookAhead, Time.unscaledDeltaTime * 12f);
+
+            float targetX = playerTransform.position.x + platformerOffset.x + _currentLookAheadX;
+
+            // 2. Vertical Tracking: Lock to ground level when jumping so houses and camera don't bounce
+            float playerY = playerTransform.position.y;
+            bool isGroundedOrWall = _playerMovement == null || _playerMovement.IsGrounded || _playerMovement.IsTouchingWall;
+
+            if (isGroundedOrWall)
+            {
+                _platformerGroundedY = playerY;
+                _platformerTargetY = _platformerGroundedY;
+            }
+            else if (!platformerLockVerticalOnJump)
+            {
+                _platformerTargetY = playerY;
+            }
+            else
+            {
+                // Airborne (jumping/falling): Only adjust targetY if player exceeds vertical deadzone
+                float deltaY = playerY - _platformerGroundedY;
+                if (deltaY > platformerVerticalDeadzone)
+                {
+                    _platformerTargetY = playerY - platformerVerticalDeadzone;
+                }
+                else if (deltaY < -platformerVerticalDeadzone)
+                {
+                    _platformerTargetY = playerY + platformerVerticalDeadzone;
+                }
             }
 
-            Vector3 targetPos = GetInstantPlatformerPosition();
-
-            // Use unscaledDeltaTime so camera tracking remains smooth even during slow-motion
-            _platformerFollowPosition = Vector3.SmoothDamp(
-                _platformerFollowPosition,
-                targetPos,
-                ref _platformerVelocity,
+            // Smooth X and Y independently: fast responsive X, calm grounded Y
+            float smoothedX = Mathf.SmoothDamp(
+                _platformerFollowPosition.x,
+                targetX,
+                ref _platformerVelocity.x,
                 platformerFollowSmoothTime,
                 Mathf.Infinity,
                 Time.unscaledDeltaTime
+            );
+
+            float smoothedY = Mathf.SmoothDamp(
+                _platformerFollowPosition.y,
+                _platformerTargetY + platformerOffset.y,
+                ref _platformerVerticalVelocity,
+                platformerVerticalSmoothTime,
+                Mathf.Infinity,
+                Time.unscaledDeltaTime
+            );
+
+            _platformerFollowPosition = new Vector3(
+                smoothedX,
+                smoothedY,
+                playerTransform.position.z + platformerOffset.z
             );
         }
 
@@ -431,6 +507,9 @@ namespace Shift.Cameras
             if (playerTransform != null)
             {
                 _playerRb = playerTransform.GetComponent<Rigidbody>();
+                _playerMovement = playerTransform.GetComponent<PlayerMovement>();
+                _platformerGroundedY = playerTransform.position.y;
+                _platformerTargetY = _platformerGroundedY;
                 _platformerFollowPosition = GetInstantPlatformerPosition();
             }
         }
