@@ -1,40 +1,96 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using Shift.Core;
 using Shift.Player;
 using Shift.Combat;
+using Shift.Cameras;
 
 namespace Shift.UI
 {
     /// <summary>
-    /// Displays speedrun timer, dimension indicator, player health,
-    /// FPS crosshair, and level completion screen.
-    /// Provides built-in GUI drawing so HUD renders immediately with zero prefab setup.
+    /// Pure TextMeshPro UGUI Controller for SHIFT.
+    /// Manages HUD elements, timer, PB records, dimension state, health, crosshair,
+    /// damage feedback, and stage clearance overlays using modern TextMeshPro (TMP_Text).
+    /// All references are optional and null-safe for complete authoring freedom in the Unity Editor.
     /// </summary>
     public class GameHUD : MonoBehaviour
     {
         public static GameHUD Instance { get; private set; }
 
-        [Header("UI Styling")]
-        [SerializeField] private Color platformerColor = new Color(0.2f, 0.8f, 1f); // Neon cyan
-        [SerializeField] private Color fpsColor = new Color(1f, 0.4f, 0.2f); // Neon orange
-        [SerializeField] private bool showCrosshairInFPS = true;
+        [Header("Speedrun Timer & PB")]
+        [Tooltip("Displays real-world run time (MM:SS.ms)")]
+        [SerializeField] private TMP_Text timerText;
+
+        [Tooltip("Displays Personal Best time")]
+        [SerializeField] private TMP_Text bestTimeText;
+
+        [Tooltip("Optional badge/object shown when current run beats PB")]
+        [SerializeField] private GameObject newRecordBadge;
+
+        [Header("Dimension Indicator")]
+        [Tooltip("Displays dimension name / status text")]
+        [SerializeField] private TMP_Text dimensionText;
+
+        [Tooltip("Badge or background image tinted by dimension")]
+        [SerializeField] private Image dimensionBadge;
+
+        [Tooltip("Optional container visible only in 2D Platformer mode")]
+        [SerializeField] private GameObject platformerContainer;
+
+        [Tooltip("Optional container visible only in FPS mode")]
+        [SerializeField] private GameObject fpsContainer;
+
+        [SerializeField] private Color platformerColor = new Color(0.2f, 0.8f, 1f, 1f); // Neon cyan
+        [SerializeField] private Color fpsColor = new Color(1f, 0.45f, 0.15f, 1f); // Neon orange
+        [SerializeField] private string platformerLabel = "2D PLATFORMER";
+        [SerializeField] private string fpsLabel = "FPS (0.25x SLOW-MO)";
+
+        [Header("Player Health")]
+        [Tooltip("Health slider bar")]
+        [SerializeField] private Slider healthSlider;
+        [Tooltip("Alternative: Image with ImageType.Filled")]
+        [SerializeField] private Image healthFillImage;
+        [Tooltip("Displays numerical health (e.g. '100 / 100')")]
+        [SerializeField] private TMP_Text healthText;
+
+        [Tooltip("Full-screen red damage flash overlay")]
+        [SerializeField] private Image damageFlashOverlay;
+        [SerializeField] private CanvasGroup damageFlashGroup;
+        [SerializeField] private float damageFlashDuration = 0.3f;
+
+        [Header("Combat Crosshair & Hit Feedback")]
+        [Tooltip("Crosshair root object; automatically displayed only during FPS mode")]
+        [SerializeField] private GameObject crosshairRoot;
+        [SerializeField] private CanvasGroup crosshairGroup;
+        [SerializeField] private bool showCrosshairOnlyInFPS = true;
+
+        [Tooltip("Hit marker indicator (X or flash on successful bullet impact)")]
+        [SerializeField] private GameObject hitMarkerRoot;
+        [SerializeField] private CanvasGroup hitMarkerGroup;
+        [SerializeField] private Image hitMarkerImage;
+        [SerializeField] private float hitMarkerDuration = 0.12f;
+
+        [Header("Stage Cleared (Completion) Panel")]
+        [SerializeField] private GameObject stageClearedPanel;
+        [SerializeField] private CanvasGroup stageClearedGroup;
+        [SerializeField] private TMP_Text clearedFinalTimeText;
+        [SerializeField] private TMP_Text clearedBestTimeText;
+        [SerializeField] private GameObject clearedNewRecordBadge;
+        [SerializeField] private Button retryButton;
+
+        [Header("Player Death (Game Over) Panel")]
+        [SerializeField] private GameObject deathPanel;
+        [SerializeField] private CanvasGroup deathGroup;
+        [SerializeField] private Button deathRestartButton;
 
         private PlayerHealth _playerHealth;
         private PlayerCombat _playerCombat;
-        private GUIStyle _timerStyle;
-        private GUIStyle _bestTimeStyle;
-        private GUIStyle _dimensionStyle;
-        private GUIStyle _healthStyle;
-        private GUIStyle _completionStyle;
-        private GUIStyle _newRecordStyle;
-        private GUIStyle _subStyle;
-        private Texture2D _crosshairTexture;
-        private Texture2D _hitMarkerTexture;
-        private Texture2D _damageFlashTexture;
-        private float _hitMarkerTimer;
-        private float _damageFlashTimer;
         private float _lastKnownHealth = 100f;
+        private float _hitMarkerTimer = 0f;
+        private float _damageFlashTimer = 0f;
+        private Color _damageFlashColor = Color.red;
 
         private void Awake()
         {
@@ -45,222 +101,352 @@ namespace Shift.UI
             }
             Instance = this;
 
-            CreateCrosshairTexture();
-            CreateDamageFlashTexture();
+            if (damageFlashOverlay != null)
+            {
+                _damageFlashColor = damageFlashOverlay.color;
+                SetDamageFlashAlpha(0f);
+            }
+            if (damageFlashGroup != null)
+            {
+                damageFlashGroup.alpha = 0f;
+            }
+
+            if (hitMarkerRoot != null) hitMarkerRoot.SetActive(false);
+            if (hitMarkerGroup != null) hitMarkerGroup.alpha = 0f;
+
+            if (stageClearedPanel != null) stageClearedPanel.SetActive(false);
+            if (stageClearedGroup != null) stageClearedGroup.alpha = 0f;
+
+            if (deathPanel != null) deathPanel.SetActive(false);
+            if (deathGroup != null) deathGroup.alpha = 0f;
+
+            if (retryButton != null)
+            {
+                retryButton.onClick.AddListener(HandleRestartClicked);
+            }
+            if (deathRestartButton != null)
+            {
+                deathRestartButton.onClick.AddListener(HandleRestartClicked);
+            }
         }
 
         private void Start()
         {
-            _playerHealth = UnityEngine.Object.FindAnyObjectByType<PlayerHealth>();
-            if (_playerHealth != null)
+            FindPlayerReferences();
+
+            if (DimensionManager.Instance != null)
             {
-                _lastKnownHealth = _playerHealth.CurrentHealth;
-                _playerHealth.OnHealthChanged += HandleHealthChanged;
+                DimensionManager.Instance.OnDimensionChanged += HandleDimensionChanged;
+                UpdateDimensionDisplay(DimensionManager.Instance.CurrentDimension);
+            }
+            else
+            {
+                UpdateDimensionDisplay(DimensionType.Platformer);
             }
 
-            _playerCombat = UnityEngine.Object.FindAnyObjectByType<PlayerCombat>();
-            if (_playerCombat != null)
+            if (LevelManager.Instance != null)
             {
-                _playerCombat.OnHitTarget += ShowHitMarker;
+                LevelManager.Instance.OnLevelCompleted += HandleLevelCompleted;
+                LevelManager.Instance.OnLevelRestarted += HandleLevelRestarted;
+                UpdateBestTimeDisplay(LevelManager.Instance.BestTime);
+            }
+
+            if (_playerHealth != null)
+            {
+                UpdateHealthDisplay(_playerHealth.CurrentHealth, _playerHealth.MaxHealth);
             }
         }
 
         private void OnDestroy()
         {
+            if (DimensionManager.Instance != null)
+            {
+                DimensionManager.Instance.OnDimensionChanged -= HandleDimensionChanged;
+            }
+
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.OnLevelCompleted -= HandleLevelCompleted;
+                LevelManager.Instance.OnLevelRestarted -= HandleLevelRestarted;
+            }
+
             if (_playerHealth != null)
             {
                 _playerHealth.OnHealthChanged -= HandleHealthChanged;
+                _playerHealth.OnPlayerDied -= HandlePlayerDied;
             }
+
             if (_playerCombat != null)
             {
                 _playerCombat.OnHitTarget -= ShowHitMarker;
             }
+
             if (Instance == this) Instance = null;
         }
+
+        private void FindPlayerReferences()
+        {
+            var player = UnityEngine.Object.FindAnyObjectByType<PlayerController>();
+            if (player != null)
+            {
+                _playerHealth = player.GetComponent<PlayerHealth>();
+                if (_playerHealth != null)
+                {
+                    _lastKnownHealth = _playerHealth.CurrentHealth;
+                    _playerHealth.OnHealthChanged += HandleHealthChanged;
+                    _playerHealth.OnPlayerDied += HandlePlayerDied;
+                }
+
+                _playerCombat = player.GetComponent<PlayerCombat>();
+                if (_playerCombat != null)
+                {
+                    _playerCombat.OnHitTarget += ShowHitMarker;
+                }
+            }
+        }
+
+        private void Update()
+        {
+            UpdateTimerDisplay();
+            UpdateCombatFeedback();
+            UpdateCrosshairVisibility();
+        }
+
+        // --- TIMER & RECORDS ---
+
+        private void UpdateTimerDisplay()
+        {
+            if (GameTimer.Instance == null) return;
+
+            string formatted = GameTimer.Instance.GetFormattedTime();
+            SetText(timerText, formatted);
+
+            if (newRecordBadge != null && LevelManager.Instance != null)
+            {
+                float best = LevelManager.Instance.BestTime;
+                bool isRecord = best > 0f && GameTimer.Instance.ElapsedTime < best;
+                newRecordBadge.SetActive(isRecord);
+            }
+        }
+
+        private void UpdateBestTimeDisplay(float bestTime)
+        {
+            string formatted = LevelManager.FormatTime(bestTime);
+            string label = bestTime > 0f ? $"PB: {formatted}" : "PB: --:--.--";
+            SetText(bestTimeText, label);
+        }
+
+        // --- DIMENSION DISPLAY ---
+
+        private void HandleDimensionChanged(DimensionType dimension)
+        {
+            UpdateDimensionDisplay(dimension);
+        }
+
+        public void UpdateDimensionDisplay(DimensionType dimension)
+        {
+            bool isFps = dimension == DimensionType.FPS;
+
+            string label = isFps ? fpsLabel : platformerLabel;
+            Color color = isFps ? fpsColor : platformerColor;
+
+            SetText(dimensionText, label);
+
+            if (dimensionText != null) dimensionText.color = color;
+            if (dimensionBadge != null) dimensionBadge.color = color;
+
+            if (platformerContainer != null) platformerContainer.SetActive(!isFps);
+            if (fpsContainer != null) fpsContainer.SetActive(isFps);
+        }
+
+        // --- HEALTH & DAMAGE FEEDBACK ---
 
         private void HandleHealthChanged(float current, float max)
         {
             if (current < _lastKnownHealth)
             {
-                _damageFlashTimer = 0.25f; // Flash on damage
+                TriggerDamageFlash();
             }
             _lastKnownHealth = current;
+            UpdateHealthDisplay(current, max);
         }
+
+        public void UpdateHealthDisplay(float current, float max)
+        {
+            float fill = max > 0f ? Mathf.Clamp01(current / max) : 0f;
+
+            if (healthSlider != null)
+            {
+                healthSlider.minValue = 0f;
+                healthSlider.maxValue = max;
+                healthSlider.value = current;
+            }
+
+            if (healthFillImage != null)
+            {
+                healthFillImage.fillAmount = fill;
+            }
+
+            string text = $"{Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
+            SetText(healthText, text);
+        }
+
+        public void TriggerDamageFlash()
+        {
+            _damageFlashTimer = damageFlashDuration;
+        }
+
+        private void SetDamageFlashAlpha(float alpha)
+        {
+            if (damageFlashOverlay != null)
+            {
+                Color c = _damageFlashColor;
+                c.a = alpha * _damageFlashColor.a;
+                damageFlashOverlay.color = c;
+            }
+            if (damageFlashGroup != null)
+            {
+                damageFlashGroup.alpha = alpha;
+            }
+        }
+
+        // --- COMBAT & HIT MARKER ---
 
         public void ShowHitMarker()
         {
-            _hitMarkerTimer = 0.1f;
+            _hitMarkerTimer = hitMarkerDuration;
+            if (hitMarkerRoot != null) hitMarkerRoot.SetActive(true);
         }
 
-        private void Update()
+        private void UpdateCombatFeedback()
         {
-            if (_hitMarkerTimer > 0f)
-            {
-                _hitMarkerTimer -= Time.unscaledDeltaTime;
-            }
+            // Damage Flash decay
             if (_damageFlashTimer > 0f)
             {
                 _damageFlashTimer -= Time.unscaledDeltaTime;
+                float alpha = Mathf.Clamp01(_damageFlashTimer / Mathf.Max(0.01f, damageFlashDuration));
+                SetDamageFlashAlpha(alpha);
+            }
+            else
+            {
+                SetDamageFlashAlpha(0f);
+            }
+
+            // Hit Marker decay
+            if (_hitMarkerTimer > 0f)
+            {
+                _hitMarkerTimer -= Time.unscaledDeltaTime;
+                float progress = Mathf.Clamp01(_hitMarkerTimer / Mathf.Max(0.01f, hitMarkerDuration));
+
+                if (hitMarkerGroup != null)
+                {
+                    hitMarkerGroup.alpha = progress;
+                }
+                if (hitMarkerImage != null)
+                {
+                    Color c = hitMarkerImage.color;
+                    c.a = progress;
+                    hitMarkerImage.color = c;
+                }
+            }
+            else
+            {
+                if (hitMarkerRoot != null && hitMarkerRoot.activeSelf)
+                {
+                    hitMarkerRoot.SetActive(false);
+                }
+                if (hitMarkerGroup != null) hitMarkerGroup.alpha = 0f;
             }
         }
 
-        private void CreateDamageFlashTexture()
+        private void UpdateCrosshairVisibility()
         {
-            _damageFlashTexture = new Texture2D(2, 2);
-            Color[] colors = new Color[4] { Color.red, Color.red, Color.red, Color.red };
-            _damageFlashTexture.SetPixels(colors);
-            _damageFlashTexture.Apply();
-        }
+            if (!showCrosshairOnlyInFPS) return;
 
-        private void CreateCrosshairTexture()
-        {
-            _crosshairTexture = new Texture2D(2, 2);
-            Color[] colors = new Color[4] { Color.white, Color.white, Color.white, Color.white };
-            _crosshairTexture.SetPixels(colors);
-            _crosshairTexture.Apply();
-
-            _hitMarkerTexture = new Texture2D(2, 2);
-            Color[] hitColors = new Color[4] { Color.red, Color.red, Color.red, Color.red };
-            _hitMarkerTexture.SetPixels(hitColors);
-            _hitMarkerTexture.Apply();
-        }
-
-        private void InitStyles()
-        {
-            if (_timerStyle != null) return;
-
-            _timerStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 28,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.UpperRight
-            };
-            _timerStyle.normal.textColor = Color.white;
-
-            _bestTimeStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 16,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.UpperRight
-            };
-            _bestTimeStyle.normal.textColor = new Color(1f, 0.85f, 0.2f); // Gold
-
-            _newRecordStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 22,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter
-            };
-            _newRecordStyle.normal.textColor = Color.yellow;
-
-            _dimensionStyle = new GUIStyle(GUI.skin.box)
-            {
-                fontSize = 20,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter
-            };
-
-            _healthStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 22,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.UpperLeft
-            };
-            _healthStyle.normal.textColor = new Color(0.2f, 1f, 0.4f);
-
-            _completionStyle = new GUIStyle(GUI.skin.box)
-            {
-                fontSize = 36,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter
-            };
-            _completionStyle.normal.textColor = Color.yellow;
-
-            _subStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 20,
-                fontStyle = FontStyle.Normal,
-                alignment = TextAnchor.MiddleCenter
-            };
-            _subStyle.normal.textColor = Color.white;
-        }
-
-        private void OnGUI()
-        {
-            InitStyles();
-
-            // 1. Speedrun Timer (Top Right)
-            string timerText = GameTimer.Instance != null ? GameTimer.Instance.GetFormattedTime() : "00:00.00";
-            Rect timerRect = new Rect(Screen.width - 240, 20, 220, 40);
-            GUI.Label(timerRect, timerText, _timerStyle);
-
-            // 2. Dimension Indicator (Top Center)
             bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
-            string dimText = isFps ? "[ SHIFT ] FPS (0.25x SLOW-MO)" : "[ SHIFT ] 2D PLATFORMER";
-            _dimensionStyle.normal.textColor = isFps ? fpsColor : platformerColor;
-            Rect dimRect = new Rect((Screen.width - 340) * 0.5f, 20, 340, 36);
-            GUI.Box(dimRect, dimText, _dimensionStyle);
 
-            // 3. Player Health (Top Left)
-            if (_playerHealth == null) _playerHealth = UnityEngine.Object.FindAnyObjectByType<PlayerHealth>();
-            float hp = _playerHealth != null ? _playerHealth.CurrentHealth : 100f;
-            float maxHp = _playerHealth != null ? _playerHealth.MaxHealth : 100f;
-            Rect hpRect = new Rect(25, 20, 200, 35);
-            GUI.Label(hpRect, $"HP: {Mathf.CeilToInt(hp)} / {Mathf.CeilToInt(maxHp)}", _healthStyle);
-
-            // 4. FPS Crosshair (Center of screen when in FPS mode)
-            if (isFps && showCrosshairInFPS && _crosshairTexture != null)
+            // Check smooth camera transition if applicable
+            float targetAlpha = isFps ? 1f : 0f;
+            if (CameraManager.Instance != null && CameraManager.Instance.IsTransitioning)
             {
-                float chSize = 4f;
-                float chLength = 12f;
-                float cx = Screen.width * 0.5f;
-                float cy = Screen.height * 0.5f;
+                targetAlpha = CameraManager.Instance.TransitionProgress;
+            }
 
-                // Center dot
-                GUI.DrawTexture(new Rect(cx - chSize * 0.5f, cy - chSize * 0.5f, chSize, chSize), _crosshairTexture);
-                // Horizontal reticle
-                GUI.DrawTexture(new Rect(cx - chLength - 4f, cy - 1f, chLength, 2f), _crosshairTexture);
-                GUI.DrawTexture(new Rect(cx + 4f, cy - 1f, chLength, 2f), _crosshairTexture);
-                // Vertical reticle
-                GUI.DrawTexture(new Rect(cx - 1f, cy - chLength - 4f, 2f, chLength), _crosshairTexture);
-                GUI.DrawTexture(new Rect(cx - 1f, cy + 4f, 2f, chLength), _crosshairTexture);
-
-                // Hit marker (X indicator on successful shot)
-                if (_hitMarkerTimer > 0f && _hitMarkerTexture != null)
+            if (crosshairRoot != null)
+            {
+                bool shouldBeActive = targetAlpha > 0.05f;
+                if (crosshairRoot.activeSelf != shouldBeActive)
                 {
-                    float hmOffset = 6f;
-                    float hmSize = 6f;
-                    GUI.DrawTexture(new Rect(cx - hmOffset - hmSize, cy - hmOffset - hmSize, hmSize, hmSize), _hitMarkerTexture);
-                    GUI.DrawTexture(new Rect(cx + hmOffset, cy - hmOffset - hmSize, hmSize, hmSize), _hitMarkerTexture);
-                    GUI.DrawTexture(new Rect(cx - hmOffset - hmSize, cy + hmOffset, hmSize, hmSize), _hitMarkerTexture);
-                    GUI.DrawTexture(new Rect(cx + hmOffset, cy + hmOffset, hmSize, hmSize), _hitMarkerTexture);
+                    crosshairRoot.SetActive(shouldBeActive);
                 }
             }
 
-            // 5. Level Completion Overlay
-            if (LevelManager.Instance != null && LevelManager.Instance.IsCompleted)
+            if (crosshairGroup != null)
             {
-                float panelW = 480;
-                float panelH = 220;
-                Rect panelRect = new Rect((Screen.width - panelW) * 0.5f, (Screen.height - panelH) * 0.5f, panelW, panelH);
-                GUI.Box(panelRect, "\nSTAGE CLEARED!", _completionStyle);
+                crosshairGroup.alpha = targetAlpha;
+            }
+        }
 
-                Rect textRect1 = new Rect(panelRect.x, panelRect.y + 90, panelW, 35);
-                GUI.Label(textRect1, $"Final Time: {GameTimer.Instance?.GetFormattedTime()}", _subStyle);
+        // --- LEVEL COMPLETION & DEATH SCREENS ---
 
-                Rect textRect2 = new Rect(panelRect.x, panelRect.y + 140, panelW, 35);
-                GUI.Label(textRect2, "Press [ R ] to Retry / Speedrun", _subStyle);
+        private void HandleLevelCompleted(float finalTime)
+        {
+            if (stageClearedPanel != null) stageClearedPanel.SetActive(true);
+            if (stageClearedGroup != null)
+            {
+                stageClearedGroup.alpha = 1f;
+                stageClearedGroup.blocksRaycasts = true;
+                stageClearedGroup.interactable = true;
             }
 
-            // 6. Death Overlay
-            if (_playerHealth != null && !_playerHealth.IsAlive)
+            string finalStr = LevelManager.FormatTime(finalTime);
+            SetText(clearedFinalTimeText, $"Time: {finalStr}");
+
+            if (LevelManager.Instance != null)
             {
-                float panelW = 400;
-                float panelH = 150;
-                Rect panelRect = new Rect((Screen.width - panelW) * 0.5f, (Screen.height - panelH) * 0.5f, panelW, panelH);
-                _completionStyle.normal.textColor = Color.red;
-                GUI.Box(panelRect, "\nYOU DIED", _completionStyle);
+                string bestStr = LevelManager.FormatTime(LevelManager.Instance.BestTime);
+                SetText(clearedBestTimeText, $"Personal Best: {bestStr}");
+
+                if (clearedNewRecordBadge != null)
+                {
+                    clearedNewRecordBadge.SetActive(LevelManager.Instance.IsNewBestTime);
+                }
             }
+        }
+
+        private void HandlePlayerDied()
+        {
+            if (deathPanel != null) deathPanel.SetActive(true);
+            if (deathGroup != null)
+            {
+                deathGroup.alpha = 1f;
+                deathGroup.blocksRaycasts = true;
+                deathGroup.interactable = true;
+            }
+        }
+
+        private void HandleLevelRestarted()
+        {
+            if (stageClearedPanel != null) stageClearedPanel.SetActive(false);
+            if (stageClearedGroup != null) stageClearedGroup.alpha = 0f;
+
+            if (deathPanel != null) deathPanel.SetActive(false);
+            if (deathGroup != null) deathGroup.alpha = 0f;
+        }
+
+        private void HandleRestartClicked()
+        {
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.RestartLevel();
+            }
+        }
+
+        // --- UTILITIES ---
+
+        private static void SetText(TMP_Text tmp, string value)
+        {
+            if (tmp != null) tmp.text = value;
         }
     }
 }

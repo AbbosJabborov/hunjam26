@@ -43,7 +43,11 @@ namespace Shift.Enemies
             _originalColors.Clear();
             foreach (var r in _renderers)
             {
-                if (r != null && r.material != null && r.material.HasProperty("_BaseColor"))
+                if (r is SpriteRenderer sr)
+                {
+                    _originalColors.Add(sr.color);
+                }
+                else if (r != null && r.material != null && r.material.HasProperty("_BaseColor"))
                 {
                     _originalColors.Add(r.material.GetColor("_BaseColor"));
                 }
@@ -83,7 +87,11 @@ namespace Shift.Enemies
         {
             for (int i = 0; i < _renderers.Length; i++)
             {
-                if (_renderers[i] != null && _renderers[i].material != null)
+                if (_renderers[i] is SpriteRenderer sr)
+                {
+                    sr.color = flashColor;
+                }
+                else if (_renderers[i] != null && _renderers[i].material != null)
                 {
                     if (_renderers[i].material.HasProperty("_BaseColor"))
                         _renderers[i].material.SetColor("_BaseColor", flashColor);
@@ -96,7 +104,11 @@ namespace Shift.Enemies
 
             for (int i = 0; i < _renderers.Length; i++)
             {
-                if (_renderers[i] != null && _renderers[i].material != null && i < _originalColors.Count)
+                if (_renderers[i] is SpriteRenderer sr && i < _originalColors.Count)
+                {
+                    sr.color = _originalColors[i];
+                }
+                else if (_renderers[i] != null && _renderers[i].material != null && i < _originalColors.Count)
                 {
                     if (_renderers[i].material.HasProperty("_BaseColor"))
                         _renderers[i].material.SetColor("_BaseColor", _originalColors[i]);
