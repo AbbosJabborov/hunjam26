@@ -8,39 +8,87 @@ namespace Shift.Enemies
 {
     /// <summary>
     /// Coordinates hand-drawn 2D paper sprite visuals for enemy entities in 3D world space:
-    /// - Platformer Mode: displays side-facing sprite, flips towards player.
-    /// - FPS Mode: displays front-facing sprite, billboarding to face the active camera.
+    /// - Platformer Mode: displays side-facing animated sprite (Enemy_idle / Enemy_slash), flips towards player.
+    /// - FPS Mode: displays front-facing animated sprite (Enemy_front_idle / Enemy_front_attack), billboarding to face the active camera.
     /// Preserves existing enemy entity, health, AI, and collision across dimensions.
     /// </summary>
     [RequireComponent(typeof(EnemyHealth))]
     public class EnemyVisuals : MonoBehaviour
     {
-        [Header("Sprites")]
-        [SerializeField] private Sprite platformerSprite;
-        [SerializeField] private Sprite fpsSprite;
+        [Header("Animator Controllers")]
+        [SerializeField] private RuntimeAnimatorController sideController;
+        [SerializeField] private RuntimeAnimatorController frontController;
+        [SerializeField] private Animator animator;
         [SerializeField] private SpriteRenderer spriteRenderer;
+        [SerializeField] private Transform visualTransform;
 
-        [Header("Billboard Settings")]
-        [SerializeField] private bool lockVerticalBillboard = true; // Stay upright
-        [SerializeField] private float spriteScale = 1.0f;
+        [Header("Visual Transform Settings")]
+        [SerializeField] private bool lockVerticalBillboard = true; // Stay upright in FPS mode
+        [SerializeField] private float spriteScale = 0.6f;
+        [SerializeField] private Vector3 visualOffset = new Vector3(0f, -1.0f, 0f);
 
         [Header("Hit Flash")]
         [SerializeField] private Color flashColor = new Color(1f, 0.2f, 0.2f, 1f);
         [SerializeField] private float flashDuration = 0.08f;
 
+        [Header("Legacy Sprites (Optional Fallback)")]
+        [SerializeField] private Sprite platformerSprite;
+        [SerializeField] private Sprite fpsSprite;
+
+        private static readonly int AttackTriggerHash = Animator.StringToHash("Attack");
+        private const string SideIdleState = "Enemy_idle";
+        private const string SideAttackState = "Enemy_slash";
+        private const string FrontIdleState = "Enemy_front_idle";
+        private const string FrontAttackState = "Enemy_front_attack";
+
         private EnemyHealth _health;
         private Transform _playerTransform;
         private Coroutine _flashRoutine;
+        private Coroutine _attackRoutine;
         private Color _baseColor = Color.white;
+        private bool _isFps;
+
+        public Animator Animator => animator;
+        public SpriteRenderer SpriteRenderer => spriteRenderer;
+        public Transform VisualTransform => visualTransform;
 
         private void Awake()
         {
             _health = GetComponent<EnemyHealth>();
-            transform.localScale = Vector3.one * spriteScale;
+
+            // Setup visual transform hierarchy
+            if (visualTransform == null)
+            {
+                var child = transform.Find("Visuals");
+                if (child != null)
+                {
+                    visualTransform = child;
+                }
+                else
+                {
+                    visualTransform = transform;
+                }
+            }
 
             if (spriteRenderer == null)
             {
                 spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+            }
+
+            if (animator == null)
+            {
+                animator = GetComponentInChildren<Animator>();
+            }
+
+            // Apply visual offset and scale if visualTransform is a dedicated child
+            if (visualTransform != null && visualTransform != transform)
+            {
+                visualTransform.localPosition = visualOffset;
+                visualTransform.localScale = Vector3.one * spriteScale;
+            }
+            else
+            {
+                transform.localScale = Vector3.one * spriteScale;
             }
 
             if (spriteRenderer != null)
@@ -98,36 +146,63 @@ namespace Shift.Enemies
 
         public void UpdateVisualDimension(DimensionType dimension)
         {
-            if (spriteRenderer == null) return;
+            _isFps = (dimension == DimensionType.FPS);
 
-            bool isFps = dimension == DimensionType.FPS;
-
-            if (isFps)
+            if (_attackRoutine != null)
             {
-                if (fpsSprite != null) spriteRenderer.sprite = fpsSprite;
-                spriteRenderer.flipX = false;
+                StopCoroutine(_attackRoutine);
+                _attackRoutine = null;
+            }
+
+            if (_isFps)
+            {
+                if (animator != null && frontController != null && animator.runtimeAnimatorController != frontController)
+                {
+                    animator.runtimeAnimatorController = frontController;
+                }
+                else if (spriteRenderer != null && fpsSprite != null)
+                {
+                    spriteRenderer.sprite = fpsSprite;
+                }
+
+                if (spriteRenderer != null)
+                {
+                    spriteRenderer.flipX = false;
+                }
             }
             else
             {
-                if (platformerSprite != null) spriteRenderer.sprite = platformerSprite;
-                transform.rotation = Quaternion.identity;
+                if (animator != null && sideController != null && animator.runtimeAnimatorController != sideController)
+                {
+                    animator.runtimeAnimatorController = sideController;
+                }
+                else if (spriteRenderer != null && platformerSprite != null)
+                {
+                    spriteRenderer.sprite = platformerSprite;
+                }
+
+                if (visualTransform != null)
+                {
+                    visualTransform.localRotation = Quaternion.identity;
+                }
+
                 UpdatePlatformerFacing();
             }
         }
 
         private void LateUpdate()
         {
-            if (spriteRenderer == null) return;
+            if (visualTransform == null && spriteRenderer == null) return;
 
-            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
+            Transform targetTransform = visualTransform != null ? visualTransform : transform;
 
-            if (isFps)
+            if (_isFps)
             {
                 // FPS Mode: Billboard behavior - face active camera
                 Camera cam = CameraManager.Instance != null ? CameraManager.Instance.ActiveCamera : Camera.main;
                 if (cam != null)
                 {
-                    Vector3 toCam = cam.transform.position - transform.position;
+                    Vector3 toCam = cam.transform.position - targetTransform.position;
                     if (lockVerticalBillboard)
                     {
                         toCam.y = 0f;
@@ -135,19 +210,25 @@ namespace Shift.Enemies
 
                     if (toCam.sqrMagnitude > 0.001f)
                     {
-                        transform.rotation = Quaternion.LookRotation(-toCam.normalized, Vector3.up);
+                        targetTransform.rotation = Quaternion.LookRotation(-toCam.normalized, Vector3.up);
                     }
                 }
             }
             else
             {
-                // Platformer Mode: Fixed plane facing, track player horizontally
+                // Platformer Mode: Flat to 2D plane, flip towards player horizontally
+                if (visualTransform != null && visualTransform != transform)
+                {
+                    visualTransform.localRotation = Quaternion.identity;
+                }
                 UpdatePlatformerFacing();
             }
         }
 
         private void UpdatePlatformerFacing()
         {
+            if (spriteRenderer == null) return;
+
             if (_playerTransform == null)
             {
                 FindPlayer();
@@ -157,6 +238,42 @@ namespace Shift.Enemies
             // Face towards player along X
             bool playerIsLeft = _playerTransform.position.x < transform.position.x;
             spriteRenderer.flipX = playerIsLeft;
+        }
+
+        /// <summary>
+        /// Plays the animated attack/slash clip matching the active dimension.
+        /// </summary>
+        public void PlayAttack()
+        {
+            if (animator == null) return;
+
+            // Trigger the transition in the active AnimatorController
+            animator.SetTrigger(AttackTriggerHash);
+
+            // Also explicitly play the state to guarantee prompt playback
+            string attackState = _isFps ? FrontAttackState : SideAttackState;
+            animator.Play(attackState, 0, 0f);
+
+            if (_attackRoutine != null) StopCoroutine(_attackRoutine);
+            _attackRoutine = StartCoroutine(ReturnToIdleRoutine(_isFps ? 0.42f : 0.58f));
+        }
+
+        public void PlayAttackAnimation()
+        {
+            PlayAttack();
+        }
+
+        private IEnumerator ReturnToIdleRoutine(float clipDuration)
+        {
+            yield return new WaitForSeconds(clipDuration);
+
+            if (animator != null)
+            {
+                string idleState = _isFps ? FrontIdleState : SideIdleState;
+                animator.Play(idleState, 0, 0f);
+            }
+
+            _attackRoutine = null;
         }
 
         private void HandleHealthChanged(float current, float max)
@@ -177,6 +294,16 @@ namespace Shift.Enemies
             {
                 spriteRenderer.color = _baseColor;
             }
+        }
+
+        public void SetControllers(RuntimeAnimatorController side, RuntimeAnimatorController front, Animator anim, SpriteRenderer sr, Transform vTrans = null)
+        {
+            sideController = side;
+            frontController = front;
+            animator = anim;
+            spriteRenderer = sr;
+            visualTransform = vTrans != null ? vTrans : (anim != null ? anim.transform : transform);
+            if (spriteRenderer != null) _baseColor = spriteRenderer.color;
         }
 
         public void SetSprites(Sprite platformer, Sprite fps, SpriteRenderer sr)

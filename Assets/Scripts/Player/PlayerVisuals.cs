@@ -21,6 +21,13 @@ namespace Shift.Player
         private static readonly int IsGroundedHash = Animator.StringToHash("IsGrounded");
         private static readonly int IsSlidingHash = Animator.StringToHash("IsSliding");
         private static readonly int IsSwingingHash = Animator.StringToHash("IsSwinging");
+        private static readonly int IsWallSlidingHash = Animator.StringToHash("IsWallSliding");
+
+        [Header("Wall Slide Facing")]
+        [Tooltip("When true, flips the sprite when on a right-side wall. Default false assumes unflipped faces right wall.")]
+        [SerializeField] private bool flipWallSlideOnRight = false;
+
+        public Vector3 FacingDirection => (spriteRenderer != null && spriteRenderer.flipX) ? Vector3.left : Vector3.right;
 
         private PlayerController _playerController;
         private PlayerMovement _playerMovement;
@@ -105,15 +112,21 @@ namespace Shift.Player
             bool isGrounded = _playerMovement != null && _playerMovement.IsGrounded;
             bool isSliding = _playerMovement != null && _playerMovement.IsSliding;
             bool isSwinging = _playerGrapple != null && _playerGrapple.IsSwinging;
+            bool isWallSliding = _playerMovement != null && _playerMovement.IsWallSliding;
 
             // Set Animator parameters if defined
             animator.SetFloat(SpeedHash, horizontalSpeed);
             animator.SetBool(IsGroundedHash, isGrounded);
             animator.SetBool(IsSlidingHash, isSliding);
             animator.SetBool(IsSwingingHash, isSwinging);
+            animator.SetBool(IsWallSlidingHash, isWallSliding);
 
             // Direct fallback state playback to ensure animation updates even if controller transitions aren't wired
-            if (isSwinging)
+            if (isWallSliding)
+            {
+                PlayStateIfDifferent("WallSlide");
+            }
+            else if (isSwinging)
             {
                 PlayStateIfDifferent("Swing");
             }
@@ -145,9 +158,27 @@ namespace Shift.Player
             }
         }
 
+        public void TriggerShootAnimation()
+        {
+            if (animator != null)
+            {
+                PlayStateIfDifferent("Shooting");
+            }
+        }
+
         private void UpdateSpriteOrientation()
         {
             if (spriteRenderer == null) return;
+
+            // When wall sliding, orient towards or away from the wall
+            if (_playerMovement != null && _playerMovement.IsWallSliding)
+            {
+                // WallNormalX < 0 means wall is to the player's right (+X).
+                // WallNormalX > 0 means wall is to the player's left (-X).
+                bool wallIsOnRight = _playerMovement.WallNormalX < 0f;
+                spriteRenderer.flipX = wallIsOnRight ? flipWallSlideOnRight : !flipWallSlideOnRight;
+                return;
+            }
 
             Vector3 vel = _rb != null ? _rb.linearVelocity : Vector3.zero;
 

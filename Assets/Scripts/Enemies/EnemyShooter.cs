@@ -29,10 +29,12 @@ namespace Shift.Enemies
         private Transform _playerTarget;
         private float _lastFireTime;
         private EnemyHealth _health;
+        private EnemyVisuals _visuals;
 
         private void Awake()
         {
             _health = GetComponent<EnemyHealth>();
+            _visuals = GetComponent<EnemyVisuals>();
             _lastFireTime = Time.time + Random.Range(0.2f, 1.0f); // Stagger initial shots
         }
 
@@ -95,6 +97,11 @@ namespace Shift.Enemies
 
         private void Shoot()
         {
+            if (_visuals != null)
+            {
+                _visuals.PlayAttack();
+            }
+
             Vector3 spawnPos = firePoint != null ? firePoint.position : transform.position + Vector3.up;
             Vector3 targetPos = _playerTarget.position + Vector3.up * 1.0f;
             Vector3 shootDir = (targetPos - spawnPos).normalized;
@@ -129,6 +136,11 @@ namespace Shift.Enemies
             }
 
             proj.Initialize(gameObject, projectileDamage, projectileSpeed);
+        }
+
+        public void SetFirePoint(Transform fp)
+        {
+            firePoint = fp;
         }
 
         private void OnDrawGizmosSelected()

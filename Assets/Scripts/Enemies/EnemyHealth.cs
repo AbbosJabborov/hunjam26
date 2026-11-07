@@ -130,6 +130,9 @@ namespace Shift.Enemies
 
             if (Application.isPlaying)
             {
+                // Trigger Ink Flood void splatter explosion
+                Shift.VFX.InkSplatterManager.Instance?.EmitBurst(transform.position, 25, 7f, Vector3.up);
+
                 // Spawn dramatic death burst cubes
                 for (int i = 0; i < 5; i++)
                 {

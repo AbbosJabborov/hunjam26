@@ -38,8 +38,8 @@ namespace Shift.Player
         [SerializeField] private float slideDuration = 0.6f;
 
         [Header("Wall Jump & Slide")]
-        [SerializeField] private float wallCheckDistance = 0.65f;
-        [SerializeField] private float wallSlideMaxFallSpeed = 4.0f;
+        [SerializeField] private float wallCheckDistance = 0.75f;
+        [SerializeField] private float wallSlideSpeed = 2.8f;
         [SerializeField] private float wallJumpHorizontalForce = 13f;
         [SerializeField] private float wallJumpVerticalForce = 13f;
         [SerializeField] private float wallJumpInputLockout = 0.18f;
@@ -50,6 +50,7 @@ namespace Shift.Player
 
         private bool _isGrounded;
         private bool _isTouchingWall;
+        private bool _isWallSliding;
         private float _wallNormalX;
         private float _wallJumpLockoutTimer;
         private float _coyoteTimer;
@@ -60,6 +61,8 @@ namespace Shift.Player
 
         public bool IsGrounded => _isGrounded;
         public bool IsTouchingWall => _isTouchingWall;
+        public bool IsWallSliding => _isWallSliding;
+        public float WallNormalX => _wallNormalX;
         public bool IsSliding => _isSliding;
         public Vector3 Velocity => (_rb != null ? _rb : GetComponent<Rigidbody>()).linearVelocity;
 
@@ -217,13 +220,18 @@ namespace Shift.Player
             _isTouchingWall = false;
             _wallNormalX = 0f;
 
-            if (_isGrounded) return;
+            if (_isGrounded)
+            {
+                _isWallSliding = false;
+                return;
+            }
 
             int mask = groundLayer & ~(1 << gameObject.layer);
             Vector3[] checkOrigins = new Vector3[]
             {
-                transform.position + Vector3.up * 0.6f,
-                transform.position + Vector3.up * 1.4f
+                transform.position + Vector3.up * 0.4f,
+                transform.position + Vector3.up * 1.0f,
+                transform.position + Vector3.up * 1.5f
             };
 
             foreach (var origin in checkOrigins)
@@ -255,12 +263,19 @@ namespace Shift.Player
         private void HandleJumpInput()
         {
             _jumpBufferTimer = jumpBufferTime;
+
+            // Immediate wall jump response when sliding or clinging to a wall
+            if (_isTouchingWall && !_isGrounded)
+            {
+                ExecuteWallJump();
+            }
         }
 
         private void ExecuteJump()
         {
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
+            _isWallSliding = false;
 
             Vector3 vel = _rb.linearVelocity;
             vel.y = jumpForce;
@@ -278,6 +293,7 @@ namespace Shift.Player
         {
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
+            _isWallSliding = false;
             _wallJumpLockoutTimer = wallJumpInputLockout;
 
             Vector3 vel = _rb.linearVelocity;
@@ -321,13 +337,27 @@ namespace Shift.Player
                 vel.x = Mathf.MoveTowards(currentSpeedX, targetSpeed, accel * Time.fixedDeltaTime);
             }
 
-            // Wall slide fall speed clamp
-            if (_isTouchingWall && !_isGrounded && vel.y < -wallSlideMaxFallSpeed)
+            // Wall slide and vertical movement
+            if (_isTouchingWall && !_isGrounded)
             {
-                vel.y = -wallSlideMaxFallSpeed;
+                // If moving downward or near peak of jump, engage wall slide
+                if (vel.y <= 0.2f)
+                {
+                    _isWallSliding = true;
+                    vel.y = -wallSlideSpeed;
+                    vel.x = 0f; // Prevent horizontal friction sticking against the wall
+                }
+                else
+                {
+                    _isWallSliding = false;
+                    // Apply low jump gravity while rising along wall
+                    vel += Vector3.up * (Physics.gravity.y * (lowJumpMultiplier - 1f) * Time.fixedDeltaTime);
+                }
             }
             else
             {
+                _isWallSliding = false;
+
                 // Gravity adjustments for crisp, responsive platformer jumps
                 if (vel.y < 0f)
                 {
