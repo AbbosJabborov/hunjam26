@@ -151,7 +151,7 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 5d9b7eda2aa304563865fdb83e3dca22
+      spriteID: e31f9b51c33af471a8a5ba749e9e435f
       internalID: 1127218977
       vertices: []
       indices: 
@@ -161,10 +161,10 @@ TextureImporter:
       name: bullet_1
       rect:
         serializedVersion: 2
-        x: 690
-        y: 183
-        width: 120
-        height: 115
+        x: 731
+        y: 230
+        width: 40
+        height: 37
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -173,7 +173,7 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 19bc7109dc0ab4476936dc7792ccc2a6
+      spriteID: 890a3d60f94624c60941e2c59379ff82
       internalID: 669487753
       vertices: []
       indices: 

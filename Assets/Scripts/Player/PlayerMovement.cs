@@ -18,11 +18,11 @@ namespace Shift.Player
         [SerializeField] private float platformerAirAcceleration = 35f;
 
         [Header("Platformer Jump")]
-        [SerializeField] private float jumpForce = 13f;
-        [SerializeField] private float fallGravityMultiplier = 2.5f;
-        [SerializeField] private float lowJumpMultiplier = 2.0f;
+        [SerializeField] private float jumpForce = 14f;
+        [SerializeField] private float fallGravityMultiplier = 1.6f;
+        [SerializeField] private float lowJumpMultiplier = 1.5f;
         [SerializeField] private float coyoteTime = 0.12f;
-        [SerializeField] private float jumpBufferTime = 0.12f;
+        [SerializeField] private float jumpBufferTime = 0.14f;
 
         [Header("FPS Movement")]
         [SerializeField] private float fpsMoveSpeed = 4.0f;
@@ -30,7 +30,7 @@ namespace Shift.Player
 
         [Header("Ground Detection")]
         [SerializeField] private Transform groundCheckPoint;
-        [SerializeField] private float groundCheckRadius = 0.35f;
+        [SerializeField] private float groundCheckRadius = 0.22f;
         [SerializeField] private LayerMask groundLayer = ~0; // Default all
 
         [Header("Sliding (Platformer)")]
@@ -38,11 +38,11 @@ namespace Shift.Player
         [SerializeField] private float slideDuration = 0.6f;
 
         [Header("Wall Jump & Slide")]
-        [SerializeField] private float wallCheckDistance = 0.75f;
-        [SerializeField] private float wallSlideSpeed = 2.8f;
-        [SerializeField] private float wallJumpHorizontalForce = 13f;
-        [SerializeField] private float wallJumpVerticalForce = 13f;
-        [SerializeField] private float wallJumpInputLockout = 0.18f;
+        [SerializeField] private float wallCheckDistance = 0.7f;
+        [SerializeField] private float wallSlideSpeed = 3.2f;
+        [SerializeField] private float wallJumpHorizontalForce = 14f;
+        [SerializeField] private float wallJumpVerticalForce = 15f;
+        [SerializeField] private float wallJumpInputLockout = 0.20f;
 
         private PlayerController _playerController;
         private Rigidbody _rb;
@@ -52,6 +52,8 @@ namespace Shift.Player
         private bool _isTouchingWall;
         private bool _isWallSliding;
         private float _wallNormalX;
+        private float _lastWallNormalX;
+        private float _wallCoyoteTimer;
         private float _wallJumpLockoutTimer;
         private float _coyoteTimer;
         private float _jumpBufferTimer;
@@ -65,6 +67,12 @@ namespace Shift.Player
         public float WallNormalX => _wallNormalX;
         public bool IsSliding => _isSliding;
         public Vector3 Velocity => (_rb != null ? _rb : GetComponent<Rigidbody>()).linearVelocity;
+
+        public void ClearJumpBuffer()
+        {
+            _jumpBufferTimer = 0f;
+            _coyoteTimer = 0f;
+        }
 
         public event System.Action<Vector3> OnLanded;
         public event System.Action<Vector3> OnJumped;
@@ -142,6 +150,11 @@ namespace Shift.Player
                 _wallJumpLockoutTimer -= Time.unscaledDeltaTime;
             }
 
+            if (_wallCoyoteTimer > 0f)
+            {
+                _wallCoyoteTimer -= Time.unscaledDeltaTime;
+            }
+
             // Coyote timer: unscaled time ensures it feels consistent across time scales
             if (_isGrounded)
             {
@@ -165,7 +178,7 @@ namespace Shift.Player
                 {
                     ExecuteJump();
                 }
-                else if (_isTouchingWall && !_isGrounded)
+                else if ((_isTouchingWall || _wallCoyoteTimer > 0f) && !_isGrounded)
                 {
                     ExecuteWallJump();
                 }
@@ -188,18 +201,57 @@ namespace Shift.Player
 
         private void CheckGround()
         {
-            Vector3 origin = groundCheckPoint != null ? groundCheckPoint.position : transform.position;
-            
-            // Sphere cast downwards ignoring triggers
-            Collider[] hits = Physics.OverlapSphere(origin, groundCheckRadius, groundLayer, QueryTriggerInteraction.Ignore);
-            
+            // Lower center spherecast (starts inside lower capsule, casts strictly downwards)
+            float castRadius = 0.22f; // Inset narrower than capsule (0.4) so vertical walls are never clipped
+            Vector3 castOrigin = transform.position + Vector3.up * 0.35f;
+            float castDist = 0.45f; // Reaches 0.10m below feet
+
             bool foundGround = false;
-            foreach (var hit in hits)
+            Vector3 landPoint = transform.position;
+
+            // 1. SphereCastAll strictly downwards
+            RaycastHit[] sHits = Physics.SphereCastAll(castOrigin, castRadius, Vector3.down, castDist, groundLayer, QueryTriggerInteraction.Ignore);
+            foreach (var hit in sHits)
             {
-                if (hit.gameObject != gameObject && !hit.transform.IsChildOf(transform))
+                if (hit.collider.gameObject == gameObject || hit.collider.transform.IsChildOf(transform))
+                    continue;
+
+                // Ground MUST face upwards (normal.y > 0.55f, max ~56° slope)
+                // Vertical walls have normal.y ≈ 0 and will NEVER trigger ground status!
+                if (hit.normal.y > 0.55f)
                 {
                     foundGround = true;
+                    landPoint = hit.point;
                     break;
+                }
+            }
+
+            // 2. Fallback downward raycasts (center, left, right) for narrow beams/thin platform edges
+            if (!foundGround)
+            {
+                Vector3[] rayOrigins = new Vector3[]
+                {
+                    transform.position + Vector3.up * 0.2f,
+                    transform.position + Vector3.up * 0.2f + Vector3.left * 0.2f,
+                    transform.position + Vector3.up * 0.2f + Vector3.right * 0.2f
+                };
+
+                for (int i = 0; i < rayOrigins.Length; i++)
+                {
+                    RaycastHit[] rHits = Physics.RaycastAll(rayOrigins[i], Vector3.down, 0.35f, groundLayer, QueryTriggerInteraction.Ignore);
+                    foreach (var rayHit in rHits)
+                    {
+                        if (rayHit.collider.gameObject == gameObject || rayHit.collider.transform.IsChildOf(transform))
+                            continue;
+
+                        if (rayHit.normal.y > 0.55f)
+                        {
+                            foundGround = true;
+                            landPoint = rayHit.point;
+                            break;
+                        }
+                    }
+                    if (foundGround) break;
                 }
             }
 
@@ -209,7 +261,7 @@ namespace Shift.Player
             }
             else if (foundGround && !_isGrounded)
             {
-                OnLanded?.Invoke(origin);
+                OnLanded?.Invoke(landPoint);
             }
 
             _isGrounded = foundGround;
@@ -223,10 +275,11 @@ namespace Shift.Player
             if (_isGrounded)
             {
                 _isWallSliding = false;
+                _wallCoyoteTimer = 0f;
                 return;
             }
 
-            int mask = groundLayer & ~(1 << gameObject.layer);
+            float checkDist = Mathf.Max(wallCheckDistance, 0.65f); // Reaches comfortably beyond 0.4m capsule
             Vector3[] checkOrigins = new Vector3[]
             {
                 transform.position + Vector3.up * 0.4f,
@@ -234,29 +287,50 @@ namespace Shift.Player
                 transform.position + Vector3.up * 1.5f
             };
 
+            RaycastHit closestHit = default;
+            float closestDist = float.MaxValue;
+            bool hitFound = false;
+
             foreach (var origin in checkOrigins)
             {
                 // Check right (+X)
-                if (Physics.Raycast(origin, Vector3.right, out RaycastHit hitRight, wallCheckDistance, mask, QueryTriggerInteraction.Ignore))
+                RaycastHit[] hitsRight = Physics.RaycastAll(origin, Vector3.right, checkDist, groundLayer, QueryTriggerInteraction.Ignore);
+                foreach (var hitRight in hitsRight)
                 {
-                    if (hitRight.collider.gameObject != gameObject && !hitRight.transform.IsChildOf(transform))
+                    if (hitRight.collider.gameObject == gameObject || hitRight.collider.transform.IsChildOf(transform))
+                        continue;
+
+                    // Ensure it's a vertical/steep wall surface
+                    if (Mathf.Abs(hitRight.normal.x) > 0.5f && hitRight.distance < closestDist)
                     {
-                        _isTouchingWall = true;
-                        _wallNormalX = hitRight.normal.x;
-                        return;
+                        closestHit = hitRight;
+                        closestDist = hitRight.distance;
+                        hitFound = true;
                     }
                 }
 
                 // Check left (-X)
-                if (Physics.Raycast(origin, Vector3.left, out RaycastHit hitLeft, wallCheckDistance, mask, QueryTriggerInteraction.Ignore))
+                RaycastHit[] hitsLeft = Physics.RaycastAll(origin, Vector3.left, checkDist, groundLayer, QueryTriggerInteraction.Ignore);
+                foreach (var hitLeft in hitsLeft)
                 {
-                    if (hitLeft.collider.gameObject != gameObject && !hitLeft.transform.IsChildOf(transform))
+                    if (hitLeft.collider.gameObject == gameObject || hitLeft.collider.transform.IsChildOf(transform))
+                        continue;
+
+                    if (Mathf.Abs(hitLeft.normal.x) > 0.5f && hitLeft.distance < closestDist)
                     {
-                        _isTouchingWall = true;
-                        _wallNormalX = hitLeft.normal.x;
-                        return;
+                        closestHit = hitLeft;
+                        closestDist = hitLeft.distance;
+                        hitFound = true;
                     }
                 }
+            }
+
+            if (hitFound)
+            {
+                _isTouchingWall = true;
+                _wallNormalX = closestHit.normal.x;
+                _lastWallNormalX = closestHit.normal.x;
+                _wallCoyoteTimer = 0.18f; // Forgiving wall jump window!
             }
         }
 
@@ -264,8 +338,11 @@ namespace Shift.Player
         {
             _jumpBufferTimer = jumpBufferTime;
 
-            // Immediate wall jump response when sliding or clinging to a wall
-            if (_isTouchingWall && !_isGrounded)
+            if (_coyoteTimer > 0f)
+            {
+                ExecuteJump();
+            }
+            else if ((_isTouchingWall || _wallCoyoteTimer > 0f) && !_isGrounded)
             {
                 ExecuteWallJump();
             }
@@ -275,12 +352,14 @@ namespace Shift.Player
         {
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
+            _wallCoyoteTimer = 0f;
             _isWallSliding = false;
 
             Vector3 vel = _rb.linearVelocity;
             vel.y = jumpForce;
             _rb.linearVelocity = vel;
 
+            AudioManager.Instance?.PlayJump();
             OnJumped?.Invoke(transform.position);
 
             if (_isSliding)
@@ -293,16 +372,21 @@ namespace Shift.Player
         {
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
+            _wallCoyoteTimer = 0f;
             _isWallSliding = false;
             _wallJumpLockoutTimer = wallJumpInputLockout;
 
+            float normalX = _wallNormalX != 0f ? _wallNormalX : _lastWallNormalX;
+            if (normalX == 0f) normalX = -1f;
+
             Vector3 vel = _rb.linearVelocity;
-            vel.x = Mathf.Sign(_wallNormalX) * wallJumpHorizontalForce;
+            vel.x = Mathf.Sign(normalX) * wallJumpHorizontalForce;
             vel.y = wallJumpVerticalForce;
             vel.z = 0f;
             _rb.linearVelocity = vel;
 
-            OnWallJumped?.Invoke(transform.position, new Vector3(_wallNormalX, 0f, 0f));
+            AudioManager.Instance?.PlayJump();
+            OnWallJumped?.Invoke(transform.position, new Vector3(normalX, 0f, 0f));
 
             if (_isSliding) EndSlide();
         }
@@ -340,12 +424,19 @@ namespace Shift.Player
             // Wall slide and vertical movement
             if (_isTouchingWall && !_isGrounded)
             {
-                // If moving downward or near peak of jump, engage wall slide
-                if (vel.y <= 0.2f)
+                // Wall slide activates when downward velocity begins or apex of jump
+                if (vel.y <= 0.1f)
                 {
                     _isWallSliding = true;
                     vel.y = -wallSlideSpeed;
-                    vel.x = 0f; // Prevent horizontal friction sticking against the wall
+
+                    // If player is steering into the wall, zero out vel.x so they don't jam or stutter
+                    // If player steers away, allow them to naturally unstick/peel off the wall
+                    bool steeringIntoWall = (input.x > 0.1f && _wallNormalX < 0f) || (input.x < -0.1f && _wallNormalX > 0f);
+                    if (steeringIntoWall)
+                    {
+                        vel.x = 0f;
+                    }
                 }
                 else
                 {

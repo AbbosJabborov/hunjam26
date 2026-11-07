@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 using TMPro;
 using Shift.Core;
 using Shift.Player;
@@ -70,8 +71,12 @@ namespace Shift.UI
         [SerializeField] private CanvasGroup crosshairGroup;
         [SerializeField] private bool showCrosshairOnlyInFPS = true;
 
-        [Header("Platformer Crosshair Cursor")]
-        [Tooltip("Custom cursor texture used as the crosshair in 2D platformer mode to aim the grapple hook")]
+        [Header("Platformer Crosshair (Canvas Scaled)")]
+        [Tooltip("UI crosshair that follows mouse in 2D platformer mode, perfectly scaled with CanvasScaler")]
+        [SerializeField] private RectTransform platformerCrosshair;
+
+        [Header("Platformer Hardware Cursor Fallback")]
+        [Tooltip("Custom cursor texture used as fallback if UI crosshair is not assigned")]
         [SerializeField] private Texture2D platformerCursorTexture;
         [SerializeField] private Vector2 cursorHotspot = new Vector2(32f, 32f);
 
@@ -101,6 +106,10 @@ namespace Shift.UI
         private float _damageFlashTimer = 0f;
         private Color _damageFlashColor = Color.red;
 
+        private Canvas _canvas;
+        private RectTransform _canvasRect;
+        private bool _isLevelEnded;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -109,6 +118,22 @@ namespace Shift.UI
                 return;
             }
             Instance = this;
+
+            _canvas = GetComponent<Canvas>();
+            _canvasRect = GetComponent<RectTransform>();
+
+            if (platformerCrosshair == null)
+            {
+                Transform found = transform.Find("Platformer_Crosshair");
+                if (found != null)
+                {
+                    platformerCrosshair = found.GetComponent<RectTransform>();
+                }
+            }
+            if (platformerCrosshair != null)
+            {
+                platformerCrosshair.gameObject.SetActive(false);
+            }
 
             if (damageFlashOverlay != null)
             {
@@ -235,6 +260,79 @@ namespace Shift.UI
             UpdateCrosshairVisibility();
         }
 
+        private void LateUpdate()
+        {
+            UpdatePlatformerCrosshair();
+        }
+
+        private void UpdatePlatformerCrosshair()
+        {
+            if (platformerCrosshair == null)
+            {
+                Transform found = transform.Find("Platformer_Crosshair");
+                if (found != null)
+                {
+                    platformerCrosshair = found.GetComponent<RectTransform>();
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            bool isFps = DimensionManager.Instance != null && DimensionManager.Instance.IsFPS;
+            if (isFps || _isLevelEnded)
+            {
+                if (platformerCrosshair.gameObject.activeSelf)
+                {
+                    platformerCrosshair.gameObject.SetActive(false);
+                }
+                return;
+            }
+
+            if (!platformerCrosshair.gameObject.activeSelf)
+            {
+                platformerCrosshair.gameObject.SetActive(true);
+            }
+            Cursor.visible = false;
+
+            if (Mouse.current == null) return;
+            Vector2 mousePos = Mouse.current.position.ReadValue();
+
+            if (_canvas == null)
+            {
+                _canvas = GetComponentInParent<Canvas>();
+                if (_canvas == null) _canvas = GetComponent<Canvas>();
+            }
+
+            if (_canvas != null && _canvas.renderMode == RenderMode.ScreenSpaceOverlay)
+            {
+                platformerCrosshair.position = new Vector3(mousePos.x, mousePos.y, 0f);
+            }
+            else
+            {
+                RectTransform parentRect = platformerCrosshair.parent as RectTransform;
+                if (parentRect == null && _canvasRect != null) parentRect = _canvasRect;
+
+                if (parentRect != null)
+                {
+                    Camera cam = (_canvas != null && _canvas.renderMode != RenderMode.ScreenSpaceOverlay) ? _canvas.worldCamera : null;
+                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRect, mousePos, cam, out Vector2 localPoint))
+                    {
+                        platformerCrosshair.anchoredPosition = localPoint;
+                    }
+                    else
+                    {
+                        platformerCrosshair.position = new Vector3(mousePos.x, mousePos.y, 0f);
+                    }
+                }
+                else
+                {
+                    platformerCrosshair.position = new Vector3(mousePos.x, mousePos.y, 0f);
+                }
+            }
+        }
+
         // --- TIMER & RECORDS ---
 
         private void UpdateTimerDisplay()
@@ -269,28 +367,54 @@ namespace Shift.UI
 
         public void UpdateCursorMode(DimensionType dimension)
         {
+            if (_isLevelEnded)
+            {
+                ResetCursorToDefault();
+                return;
+            }
+
             if (dimension == DimensionType.FPS)
             {
+                if (platformerCrosshair != null) platformerCrosshair.gameObject.SetActive(false);
                 Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
                 Cursor.visible = false;
                 Cursor.lockState = CursorLockMode.Locked;
             }
             else
             {
-                if (platformerCursorTexture != null)
+                Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                Cursor.lockState = CursorLockMode.None;
+
+                if (platformerCrosshair == null)
+                {
+                    Transform found = transform.Find("Platformer_Crosshair");
+                    if (found != null) platformerCrosshair = found.GetComponent<RectTransform>();
+                }
+
+                if (platformerCrosshair != null)
+                {
+                    Cursor.visible = false;
+                    platformerCrosshair.gameObject.SetActive(true);
+                    UpdatePlatformerCrosshair();
+                }
+                else if (platformerCursorTexture != null)
                 {
                     Vector2 hotspot = cursorHotspot.sqrMagnitude > 0f
                         ? cursorHotspot
                         : new Vector2(platformerCursorTexture.width / 2f, platformerCursorTexture.height / 2f);
                     Cursor.SetCursor(platformerCursorTexture, hotspot, CursorMode.Auto);
+                    Cursor.visible = true;
                 }
-                Cursor.visible = true;
-                Cursor.lockState = CursorLockMode.None;
+                else
+                {
+                    Cursor.visible = true;
+                }
             }
         }
 
         public void ResetCursorToDefault()
         {
+            if (platformerCrosshair != null) platformerCrosshair.gameObject.SetActive(false);
             Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
@@ -449,6 +573,7 @@ namespace Shift.UI
 
         private void HandleLevelCompleted(float finalTime)
         {
+            _isLevelEnded = true;
             ResetCursorToDefault();
 
             if (stageClearedPanel != null) stageClearedPanel.SetActive(true);
@@ -476,6 +601,7 @@ namespace Shift.UI
 
         private void HandlePlayerDied()
         {
+            _isLevelEnded = true;
             ResetCursorToDefault();
 
             if (deathPanel != null) deathPanel.SetActive(true);
@@ -489,11 +615,14 @@ namespace Shift.UI
 
         private void HandleLevelRestarted()
         {
+            _isLevelEnded = false;
             if (stageClearedPanel != null) stageClearedPanel.SetActive(false);
             if (stageClearedGroup != null) stageClearedGroup.alpha = 0f;
 
             if (deathPanel != null) deathPanel.SetActive(false);
             if (deathGroup != null) deathGroup.alpha = 0f;
+
+            UpdateCursorMode(DimensionManager.Instance != null ? DimensionManager.Instance.CurrentDimension : DimensionType.Platformer);
         }
 
         private void HandleRestartClicked()

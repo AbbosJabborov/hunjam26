@@ -242,13 +242,36 @@ namespace Shift.Player
         {
             if (!_isSwinging) return;
 
-            // Spider-Man jump release: launches off the swing arc with extra lift and forward punch
             Vector3 vel = _rb.linearVelocity;
-            Vector3 forwardBoost = vel.normalized * releaseJumpBoost;
 
-            // Add strong upward boost if jumping during swing
-            vel += forwardBoost * 0.7f + Vector3.up * (releaseJumpBoost * 0.8f);
+            // Preserve horizontal swing momentum with a controlled cap (prevents rocketing across the level)
+            float swingDirX = Mathf.Abs(vel.x) > 0.5f ? Mathf.Sign(vel.x) : _lastMoveDirX;
+            float currentSpeedX = Mathf.Abs(vel.x);
+            vel.x = Mathf.Clamp(currentSpeedX + 1.5f, 8f, 16f) * swingDirX;
+
+            // Upward jump: provides a clean jump similar to regular jump (14),
+            // strictly capped so it never skyrockets to triple jump height
+            float baseJumpLift = Mathf.Clamp(releaseJumpBoost, 10f, 13f);
+            if (vel.y > 0f)
+            {
+                // Riding upward arc: modest boost capped at 15.5f (regular ground jump is 14)
+                vel.y = Mathf.Clamp(vel.y * 0.4f + baseJumpLift, 12f, 15.5f);
+            }
+            else
+            {
+                // Moving downward or level: cancel downward drop and provide clean jump lift
+                vel.y = baseJumpLift;
+            }
+
+            vel.z = 0f;
             _rb.linearVelocity = vel;
+
+            // Clear ground jump buffer so jump isn't double-consumed if near ground/walls
+            if (_playerController != null)
+            {
+                var movement = _playerController.GetComponent<PlayerMovement>();
+                movement?.ClearJumpBuffer();
+            }
 
             AudioManager.Instance?.PlayJump();
             StopSwing();

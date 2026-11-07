@@ -395,25 +395,25 @@ MonoBehaviour:
   platformerAcceleration: 75
   platformerDeceleration: 65
   platformerAirAcceleration: 35
-  jumpForce: 13
-  fallGravityMultiplier: 2.5
-  lowJumpMultiplier: 2
+  jumpForce: 14
+  fallGravityMultiplier: 1.6
+  lowJumpMultiplier: 1.5
   coyoteTime: 0.12
-  jumpBufferTime: 0.12
+  jumpBufferTime: 0.14
   fpsMoveSpeed: 4
   fpsAcceleration: 25
   groundCheckPoint: {fileID: 165449721}
-  groundCheckRadius: 0.35
+  groundCheckRadius: 0.22
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
   slideSpeedBoost: 1.3
   slideDuration: 0.6
-  wallCheckDistance: 0.75
-  wallSlideSpeed: 2.8
-  wallJumpHorizontalForce: 11
-  wallJumpVerticalForce: 12
-  wallJumpInputLockout: 0.15
+  wallCheckDistance: 0.7
+  wallSlideSpeed: 3.2
+  wallJumpHorizontalForce: 14
+  wallJumpVerticalForce: 15
+  wallJumpInputLockout: 0.2
 --- !u!114 &78369342
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -468,7 +468,7 @@ MonoBehaviour:
   swingForce: 35
   swingGravityBoost: 1.6
   reelSpeed: 12
-  releaseJumpBoost: 14
+  releaseJumpBoost: 8
   minRopeLength: 2.5
   grappleLayer:
     serializedVersion: 2
@@ -3513,6 +3513,7 @@ MonoBehaviour:
   crosshairRoot: {fileID: 1533255552}
   crosshairGroup: {fileID: 1533255554}
   showCrosshairOnlyInFPS: 1
+  platformerCrosshair: {fileID: 680277206}
   platformerCursorTexture: {fileID: 2800000, guid: 23340ef0b4e354667a271fe88fe70774, type: 3}
   cursorHotspot: {x: 32, y: 32}
   hitMarkerRoot: {fileID: 1772094534}
@@ -3546,8 +3547,9 @@ RectTransform:
   - {fileID: 1331955621}
   - {fileID: 1533255553}
   - {fileID: 772590573}
-  - {fileID: 927282373}
   - {fileID: 963375736}
+  - {fileID: 680277206}
+  - {fileID: 927282373}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -3990,6 +3992,81 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 635278523}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &680277205
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 680277206}
+  - component: {fileID: 680277208}
+  - component: {fileID: 680277207}
+  m_Layer: 0
+  m_Name: Platformer_Crosshair
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!224 &680277206
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 680277205}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 602593206}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 262.79977, y: 437.59216}
+  m_SizeDelta: {x: 64, y: 64}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &680277207
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 680277205}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: -1628836080, guid: 0a3f0edabcc1146d1a44636103fd047a, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 1
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &680277208
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 680277205}
+  m_CullTransparentMesh: 1
 --- !u!1 &693287548
 GameObject:
   m_ObjectHideFlags: 0
