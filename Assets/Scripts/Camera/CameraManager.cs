@@ -25,17 +25,33 @@ namespace Shift.Cameras
 
         [Header("Platformer Camera Settings")]
         [SerializeField] private Vector3 platformerOffset = new Vector3(0f, 1.5f, -15f);
-        [SerializeField] private float platformerFollowSmoothTime = 0.12f;
         [SerializeField] private float orthographicSize = 7.5f;
         [SerializeField] private float horizontalLookAhead = 2.5f;
 
-        [Header("Platformer Vertical Follow")]
-        [Tooltip("When true, camera Y remains locked to ground elevation during jumps to prevent bobbing and exposed void.")]
+        [Header("Cinemachine-Style Dead Zone")]
+        [Tooltip("Horizontal half-width of the dead zone. The camera does not move horizontally while player is inside.")]
+        [SerializeField] private float horizontalDeadzone = 1.0f;
+
+        [Tooltip("Vertical distance above grounded height before camera follows airborne player.")]
+        [SerializeField] private float deadZoneTop = 4.0f;
+
+        [Tooltip("Vertical distance below grounded height before camera follows falling player.")]
+        [SerializeField] private float deadZoneBottom = 2.5f;
+
+        [Tooltip("When true, camera Y remains locked to ground elevation during jumps so background parallax and houses do not bob.")]
         [SerializeField] private bool platformerLockVerticalOnJump = true;
-        [Tooltip("Vertical deadzone above/below grounded height before camera follows airborne player.")]
+
+        [Tooltip("Vertical deadzone legacy value (synchronized with deadZoneTop for scene compatibility).")]
         [SerializeField] private float platformerVerticalDeadzone = 4.0f;
-        [Tooltip("Smooth time for vertical elevation changes between ledges.")]
+
+        [Header("Platformer Follow Damping (Smooth Times)")]
+        [SerializeField] private float platformerFollowSmoothTime = 0.15f;
         [SerializeField] private float platformerVerticalSmoothTime = 0.35f;
+
+        [Header("Cinemachine Visual Gizmos (Scene View)")]
+        [Tooltip("Draws Cinemachine-style Dead Zone (Yellow) and Viewport Framing (Cyan) boxes in the Scene View.")]
+        [SerializeField] private bool showGizmos = true;
+        [SerializeField] private bool showGizmosOnlyWhenSelected = false;
 
         [Header("FPS Camera Settings")]
         [SerializeField] private float defaultFpsFov = 80f;
@@ -56,6 +72,7 @@ namespace Shift.Cameras
         private Vector3 _platformerVelocity;
         private Rigidbody _playerRb;
         private PlayerMovement _playerMovement;
+        private float _platformerTargetX;
         private float _platformerGroundedY;
         private float _platformerTargetY;
         private float _platformerVerticalVelocity;
@@ -76,6 +93,18 @@ namespace Shift.Cameras
 
         public Camera FPSCamera => fpsCamera;
         public Camera PlatformerCamera => platformerCamera;
+
+        private void OnValidate()
+        {
+            if (deadZoneTop <= 0.01f && platformerVerticalDeadzone > 0.01f)
+            {
+                deadZoneTop = platformerVerticalDeadzone;
+            }
+            else if (deadZoneTop > 0.01f)
+            {
+                platformerVerticalDeadzone = deadZoneTop;
+            }
+        }
 
         private void Awake()
         {
@@ -406,6 +435,7 @@ namespace Shift.Cameras
         {
             if (playerTransform == null) return platformerOffset;
 
+            _platformerTargetX = playerTransform.position.x;
             float lookAheadX = 0f;
             if (_playerRb != null)
             {
@@ -415,7 +445,7 @@ namespace Shift.Cameras
             float yPos = platformerLockVerticalOnJump ? _platformerGroundedY : playerTransform.position.y;
 
             return new Vector3(
-                playerTransform.position.x + platformerOffset.x + lookAheadX,
+                _platformerTargetX + platformerOffset.x + lookAheadX,
                 yPos + platformerOffset.y,
                 playerTransform.position.z + platformerOffset.z
             );
@@ -428,7 +458,21 @@ namespace Shift.Cameras
             if (_playerRb == null) _playerRb = playerTransform.GetComponent<Rigidbody>();
             if (_playerMovement == null) _playerMovement = playerTransform.GetComponent<PlayerMovement>();
 
-            // 1. Horizontal Tracking with smoothed look-ahead to eliminate physics velocity jitter
+            float playerX = playerTransform.position.x;
+            float playerY = playerTransform.position.y;
+
+            // 1. Horizontal Dead Zone Tracking (Cinemachine Style)
+            float deltaX = playerX - _platformerTargetX;
+            if (deltaX > horizontalDeadzone)
+            {
+                _platformerTargetX = playerX - horizontalDeadzone;
+            }
+            else if (deltaX < -horizontalDeadzone)
+            {
+                _platformerTargetX = playerX + horizontalDeadzone;
+            }
+
+            // Smoothed look-ahead to eliminate physics velocity jitter
             float targetLookAhead = 0f;
             if (_playerRb != null)
             {
@@ -436,11 +480,12 @@ namespace Shift.Cameras
             }
             _currentLookAheadX = Mathf.MoveTowards(_currentLookAheadX, targetLookAhead, Time.unscaledDeltaTime * 12f);
 
-            float targetX = playerTransform.position.x + platformerOffset.x + _currentLookAheadX;
+            float targetX = _platformerTargetX + platformerOffset.x + _currentLookAheadX;
 
-            // 2. Vertical Tracking: Lock to ground level when jumping so houses and camera don't bounce
-            float playerY = playerTransform.position.y;
+            // 2. Vertical Dead Zone Tracking (with Ground Lock for jumps)
             bool isGroundedOrWall = _playerMovement == null || _playerMovement.IsGrounded || _playerMovement.IsTouchingWall;
+            float activeDeadZoneTop = deadZoneTop > 0.01f ? deadZoneTop : platformerVerticalDeadzone;
+            float activeDeadZoneBottom = deadZoneBottom > 0.01f ? deadZoneBottom : activeDeadZoneTop * 0.6f;
 
             if (isGroundedOrWall)
             {
@@ -449,19 +494,31 @@ namespace Shift.Cameras
             }
             else if (!platformerLockVerticalOnJump)
             {
-                _platformerTargetY = playerY;
+                float deltaY = playerY - _platformerTargetY;
+                if (deltaY > activeDeadZoneTop)
+                {
+                    _platformerTargetY = playerY - activeDeadZoneTop;
+                }
+                else if (deltaY < -activeDeadZoneBottom)
+                {
+                    _platformerTargetY = playerY + activeDeadZoneBottom;
+                }
             }
             else
             {
-                // Airborne (jumping/falling): Only adjust targetY if player exceeds vertical deadzone
+                // Airborne (jumping/falling): Lock to ground, only shift if exceeding deadzone
                 float deltaY = playerY - _platformerGroundedY;
-                if (deltaY > platformerVerticalDeadzone)
+                if (deltaY > activeDeadZoneTop)
                 {
-                    _platformerTargetY = playerY - platformerVerticalDeadzone;
+                    _platformerTargetY = playerY - activeDeadZoneTop;
                 }
-                else if (deltaY < -platformerVerticalDeadzone)
+                else if (deltaY < -activeDeadZoneBottom)
                 {
-                    _platformerTargetY = playerY + platformerVerticalDeadzone;
+                    _platformerTargetY = playerY + activeDeadZoneBottom;
+                }
+                else
+                {
+                    _platformerTargetY = _platformerGroundedY;
                 }
             }
 
@@ -508,10 +565,98 @@ namespace Shift.Cameras
             {
                 _playerRb = playerTransform.GetComponent<Rigidbody>();
                 _playerMovement = playerTransform.GetComponent<PlayerMovement>();
+                _platformerTargetX = playerTransform.position.x;
                 _platformerGroundedY = playerTransform.position.y;
                 _platformerTargetY = _platformerGroundedY;
                 _platformerFollowPosition = GetInstantPlatformerPosition();
             }
         }
+
+#if UNITY_EDITOR
+        private void OnDrawGizmos()
+        {
+            if (showGizmosOnlyWhenSelected) return;
+            DrawCinemachineGizmos();
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (showGizmosOnlyWhenSelected)
+            {
+                DrawCinemachineGizmos();
+            }
+        }
+
+        private void DrawCinemachineGizmos()
+        {
+            if (!showGizmos) return;
+
+            Vector3 playerPos = playerTransform != null ? playerTransform.position : transform.position;
+            float zPlane = playerPos.z;
+
+            Camera cam = platformerCamera != null ? platformerCamera : Camera.main;
+            Vector3 camPos = cam != null ? cam.transform.position : transform.position;
+            if (Application.isPlaying && _transitionProgress <= 0.01f)
+            {
+                camPos = _platformerFollowPosition;
+            }
+
+            float activeDeadZoneTop = deadZoneTop > 0.01f ? deadZoneTop : platformerVerticalDeadzone;
+            float activeDeadZoneBottom = deadZoneBottom > 0.01f ? deadZoneBottom : activeDeadZoneTop * 0.6f;
+            float baseY = (Application.isPlaying && platformerLockVerticalOnJump) ? _platformerGroundedY : playerPos.y;
+            float anchorX = Application.isPlaying ? _platformerTargetX : playerPos.x;
+
+            // 1. Draw Player Center Target (Red Sphere)
+            Gizmos.color = new Color(1f, 0.25f, 0.25f, 0.9f);
+            Gizmos.DrawSphere(new Vector3(playerPos.x, playerPos.y, zPlane), 0.18f);
+
+            // 2. Draw Ground Reference Elevation Line (Bright Green)
+            if (platformerLockVerticalOnJump)
+            {
+                Gizmos.color = new Color(0.2f, 1f, 0.35f, 0.85f);
+                float lineHalfW = Mathf.Max(horizontalDeadzone * 2.5f, 5f);
+                Vector3 gLeft = new Vector3(anchorX - lineHalfW, baseY, zPlane);
+                Vector3 gRight = new Vector3(anchorX + lineHalfW, baseY, zPlane);
+                Gizmos.DrawLine(gLeft, gRight);
+            }
+
+            // 3. Draw Cinemachine Dead Zone (Yellow Box)
+            float dzHeight = activeDeadZoneTop + activeDeadZoneBottom;
+            float dzCenterY = baseY + (activeDeadZoneTop - activeDeadZoneBottom) * 0.5f;
+            Vector3 deadZoneCenter = new Vector3(anchorX, dzCenterY, zPlane);
+            Vector3 deadZoneSize = new Vector3(horizontalDeadzone * 2f, dzHeight, 0.1f);
+
+            // Semi-transparent yellow fill
+            Gizmos.color = new Color(1f, 0.92f, 0.016f, 0.15f);
+            Gizmos.DrawCube(deadZoneCenter, deadZoneSize);
+            // Solid yellow wireframe
+            Gizmos.color = new Color(1f, 0.92f, 0.016f, 0.95f);
+            Gizmos.DrawWireCube(deadZoneCenter, deadZoneSize);
+
+            // 4. Draw Camera Viewport Framing (Cyan Box)
+            if (cam != null && cam.orthographic)
+            {
+                float orthoH = cam.orthographicSize * 2f;
+                float orthoW = orthoH * cam.aspect;
+                Vector3 viewportCenter = new Vector3(camPos.x, camPos.y, zPlane);
+                Vector3 viewportSize = new Vector3(orthoW, orthoH, 0.1f);
+
+                Gizmos.color = new Color(0.1f, 0.85f, 1f, 0.08f);
+                Gizmos.DrawCube(viewportCenter, viewportSize);
+                Gizmos.color = new Color(0.1f, 0.85f, 1f, 0.75f);
+                Gizmos.DrawWireCube(viewportCenter, viewportSize);
+            }
+
+            // 5. Look-Ahead Offset Vector (Orange Ray)
+            if (Application.isPlaying && Mathf.Abs(_currentLookAheadX) > 0.01f)
+            {
+                Gizmos.color = new Color(1f, 0.55f, 0f, 0.9f);
+                Vector3 lookOrigin = new Vector3(playerPos.x, playerPos.y + 0.5f, zPlane);
+                Vector3 lookTarget = lookOrigin + new Vector3(_currentLookAheadX, 0f, 0f);
+                Gizmos.DrawLine(lookOrigin, lookTarget);
+                Gizmos.DrawWireSphere(lookTarget, 0.12f);
+            }
+        }
+#endif
     }
 }
