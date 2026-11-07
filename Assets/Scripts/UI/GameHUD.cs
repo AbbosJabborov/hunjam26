@@ -42,10 +42,14 @@ namespace Shift.UI
         [Tooltip("Optional container visible only in FPS mode")]
         [SerializeField] private GameObject fpsContainer;
 
-        [SerializeField] private Color platformerColor = new Color(0.2f, 0.8f, 1f, 1f); // Neon cyan
-        [SerializeField] private Color fpsColor = new Color(1f, 0.45f, 0.15f, 1f); // Neon orange
-        [SerializeField] private string platformerLabel = "2D PLATFORMER";
-        [SerializeField] private string fpsLabel = "FPS (0.25x SLOW-MO)";
+        [SerializeField] private Color platformerColor = new Color(0.18f, 0.16f, 0.15f, 1f); // Charcoal Ink #2E2926
+        [SerializeField] private Color fpsColor = new Color(0.66f, 0.16f, 0.16f, 1f); // Cinnabar Red #A82828
+        [SerializeField] private string platformerLabel = "[ SHIFT ] 2D PARCHMENT";
+        [SerializeField] private string fpsLabel = "[ SHIFT ] 3D INK VOID (SLOW-MO)";
+
+        [Header("Ink Flood Atmosphere")]
+        [Tooltip("Wet ink vignette that eats into the screen during 3D FPS mode")]
+        [SerializeField] private CanvasGroup inkVignetteGroup;
 
         [Header("Player Health")]
         [Tooltip("Health slider bar")]
@@ -109,6 +113,11 @@ namespace Shift.UI
             if (damageFlashGroup != null)
             {
                 damageFlashGroup.alpha = 0f;
+            }
+
+            if (inkVignetteGroup != null)
+            {
+                inkVignetteGroup.alpha = 0f;
             }
 
             if (hitMarkerRoot != null) hitMarkerRoot.SetActive(false);
@@ -384,6 +393,11 @@ namespace Shift.UI
             if (crosshairGroup != null)
             {
                 crosshairGroup.alpha = targetAlpha;
+            }
+
+            if (inkVignetteGroup != null)
+            {
+                inkVignetteGroup.alpha = targetAlpha;
             }
         }
 

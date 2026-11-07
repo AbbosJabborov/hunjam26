@@ -63,6 +63,11 @@ namespace Shift.Player
         public bool IsSliding => _isSliding;
         public Vector3 Velocity => (_rb != null ? _rb : GetComponent<Rigidbody>()).linearVelocity;
 
+        public event System.Action<Vector3> OnLanded;
+        public event System.Action<Vector3> OnJumped;
+        public event System.Action<Vector3, Vector3> OnWallJumped;
+        public event System.Action<Vector3> OnSlideStarted;
+
         private void Awake()
         {
             _playerController = GetComponent<PlayerController>();
@@ -195,6 +200,15 @@ namespace Shift.Player
                 }
             }
 
+            if (!foundGround && _isGrounded)
+            {
+                // Left the ground
+            }
+            else if (foundGround && !_isGrounded)
+            {
+                OnLanded?.Invoke(origin);
+            }
+
             _isGrounded = foundGround;
         }
 
@@ -252,6 +266,8 @@ namespace Shift.Player
             vel.y = jumpForce;
             _rb.linearVelocity = vel;
 
+            OnJumped?.Invoke(transform.position);
+
             if (_isSliding)
             {
                 EndSlide();
@@ -269,6 +285,8 @@ namespace Shift.Player
             vel.y = wallJumpVerticalForce;
             vel.z = 0f;
             _rb.linearVelocity = vel;
+
+            OnWallJumped?.Invoke(transform.position, new Vector3(_wallNormalX, 0f, 0f));
 
             if (_isSliding) EndSlide();
         }
@@ -365,6 +383,8 @@ namespace Shift.Player
             _isSliding = true;
             _slideTimer = slideDuration;
             _slideDirection = Mathf.Sign(input.x);
+
+            OnSlideStarted?.Invoke(transform.position);
 
             // Slightly reduce capsule height during slide
             if (_playerController != null && _playerController.Collider != null)
