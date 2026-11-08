@@ -167,6 +167,22 @@ namespace Shift.VFX
                 _particleSys.Emit(_emitParams, 1);
             }
         }
+
+        public void EmitWaterWake(Vector3 position, Vector3 velocity)
+        {
+            if (_particleSys == null) return;
+
+            Vector3 kickDir = (new Vector3(velocity.x * 0.35f, 2.2f, 0f) + Random.insideUnitSphere * 0.4f).normalized;
+            for (int i = 0; i < 4; i++)
+            {
+                _emitParams.position = position + new Vector3(Random.Range(-0.25f, 0.25f), 0.05f, 0f);
+                _emitParams.velocity = kickDir * Random.Range(2.0f, 4.2f);
+                _emitParams.startSize = baseParticleSize * Random.Range(0.35f, 0.75f);
+                _emitParams.startLifetime = Random.Range(0.25f, 0.5f);
+                _emitParams.startColor = new Color(0.95f, 0.92f, 0.84f, 0.85f); // Cream parchment foam droplets
+                _particleSys.Emit(_emitParams, 1);
+            }
+        }
     }
 }
 

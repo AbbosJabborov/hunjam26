@@ -28,6 +28,15 @@ Shader "Custom/InkLakeWater"
         _SideDepthFade ("Side Face Ink Darkening Depth", Float) = 2.5
         _SideBandCount ("Side Wave Contours", Range(0, 5)) = 3
 
+        // Hand-drawn side water details
+        _SideInkLineColor ("Ink Contour Color", Color) = (0.22, 0.18, 0.16, 1)
+        _SideInkNoiseScale ("Ink Noise Scale", Float) = 2.5
+        _SideInkNoiseStrength ("Ink Noise Strength", Range(0, 1)) = 0.45
+        _SideStrokeSpeed ("Ink Stroke Animation Speed", Float) = 0.18
+        _SideContourFrequency ("Contour Frequency", Float) = 3.2
+        _SideContourStrength ("Contour Strength", Range(0, 1)) = 0.3
+        _SideHighlightVariation ("Highlight Variation", Range(0, 1)) = 0.45
+
         [Toggle] _EnableVertexDisplacement ("Enable Vertex Displacement", Float) = 1.0
         [Toggle] _DisplaceTopOnly ("Displace Top Vertices Only", Float) = 1.0
 
@@ -91,6 +100,14 @@ Shader "Custom/InkLakeWater"
                 float _ClipRimThickness;
                 float _SideDepthFade;
                 float _SideBandCount;
+
+                float4 _SideInkLineColor;
+                float _SideInkNoiseScale;
+                float _SideInkNoiseStrength;
+                float _SideStrokeSpeed;
+                float _SideContourFrequency;
+                float _SideContourStrength;
+                float _SideHighlightVariation;
 
                 float _EnableVertexDisplacement;
                 float _DisplaceTopOnly;
@@ -184,7 +201,10 @@ Shader "Custom/InkLakeWater"
 
                 // Weighted combination
                 float combinedNorm = crest1 * 0.52 + crest2 * 0.30 + crest3 * 0.18;
-                combinedNorm = saturate(combinedNorm + surge * 0.15);
+                // Organic, hand-drawn irregularity
+                float edgeRipple = sin(worldXZ.x * 7.5 + worldXZ.y * 2.1 + t * 2.2) * 0.025;
+                edgeRipple += sin(worldXZ.x * 13.0 - t * 3.1) * 0.009;
+                combinedNorm = saturate( combinedNorm + surge * 0.15 + edgeRipple );
 
                 // World displacement
                 outDisplacement = (combinedNorm * 2.0 - 1.0) * _WaveHeight;
@@ -222,6 +242,7 @@ Shader "Custom/InkLakeWater"
                         // Displace vertices that belong to the top surface or upper half of the box
                         factor = saturate((input.positionOS.y + 0.1) * 3.0);
                     }
+                    worldPos.y -= _WaterlineOffset * factor;
                     worldPos.y += waveDisp * factor;
                 }
 
@@ -238,6 +259,18 @@ Shader "Custom/InkLakeWater"
 
                 // Detect if viewing top surface (XZ water plane) or vertical front/side faces
                 bool isTopFace = input.normalOS.y > 0.35 || normalWS.y > 0.65;
+
+                // --- 2D ORTHO PLATFORMER VIEW CULLING ---
+                // When viewed from an orthographic camera (Platformer 2D view):
+                // In pure 2D side-scrolling, only the front cross-section wave silhouette should exist.
+                // Discard top face (XZ plane) and any non-camera-facing surfaces to eliminate hovering quads.
+                if (unity_OrthoParams.w > 0.5)
+                {
+                    if (isTopFace || normalWS.z > -0.1)
+                    {
+                        discard;
+                    }
+                }
 
                 // Re-evaluate wave math at pixel precision for crisp procedural contours
                 float waveDisp = 0.0;
@@ -263,30 +296,65 @@ Shader "Custom/InkLakeWater"
                     // Distance below the animated crest line (0 = at crest line, >0 = deep in water)
                     float depthBelowCrest = -deltaFromSurface;
 
-                    // 1.1 Stylized Wave Rim Outline (the bright calligraphic wave crest)
-                    float rimThreshold = _ClipRimThickness;
-                    float isCrestRim = 1.0 - smoothstep(0.0, rimThreshold, depthBelowCrest);
+                    // -------------------------------------------------
+                    // HAND-DRAWN PAPER WATER RENDERING
+                    // -------------------------------------------------
+                    float2 inkCoord = float2(
+                        input.positionWS.x * _SideInkNoiseScale,
+                        depthBelowCrest * _SideInkNoiseScale * 0.65
+                    );
 
-                    // 1.2 Woodblock Ink Contour Bands below the crest
-                    float bandFactor = 0.0;
-                    if (_SideBandCount > 0.5)
-                    {
-                        float bandScale = 4.2;
-                        float bandWave = sin(depthBelowCrest * bandScale - _Time.y * 1.6);
-                        float steppedBand = step(0.68, bandWave) * saturate(1.0 - depthBelowCrest / max(0.01, _SideDepthFade));
-                        bandFactor = steppedBand;
-                    }
+                    // Slowly drifting procedural ink texture
+                    float strokeNoise = ValueNoise2D(
+                        inkCoord + float2(_Time.y * _SideStrokeSpeed, 0.0)
+                    );
 
-                    // 1.3 Deep ink depth darkening (fade into absolute charcoal/void black)
-                    float depthGradient = saturate(depthBelowCrest / max(0.1, _SideDepthFade));
-                    float3 sideInkColor = lerp(_ShallowColor.rgb, _BaseColor.rgb, depthGradient);
+                    // Secondary noise for irregularity
+                    float secondaryNoise = ValueNoise2D(
+                        inkCoord * 1.8 - float2(0.0, _Time.y * 0.12)
+                    );
 
-                    // Blend contour bands and crest rim
-                    sideInkColor = lerp(sideInkColor, _AccentColor.rgb, bandFactor * 0.55);
-                    sideInkColor = lerp(sideInkColor, _CrestLineColor.rgb, isCrestRim);
+                    // Combine noise layers
+                    float inkVariation = lerp( strokeNoise, secondaryNoise, 0.35 );
 
-                    // Subtle ink edge rim light
-                    float fresnel = pow(saturate(1.0 - dot(normalWS, viewDirWS)), 3.0) * 0.2;
+                    // 1. Hand-drawn crest highlight
+                    float rimThickness = _ClipRimThickness * lerp(0.65, 1.35, inkVariation);
+                    float rim = 1.0 - smoothstep( 0.0, rimThickness, depthBelowCrest );
+
+                    // Vary highlight opacity
+                    rim *= lerp( 1.0, smoothstep(0.15, 0.75, inkVariation), _SideHighlightVariation );
+
+                    // 2. Organic contour strokes
+                    float contourPhase = depthBelowCrest * _SideContourFrequency
+                                       + (inkVariation - 0.5) * _SideInkNoiseStrength * 2.0
+                                       - _Time.y * 0.35;
+                    float contourWave = abs(sin(contourPhase));
+
+                    // Thin, irregular contour lines
+                    float contourLine = 1.0 - smoothstep( 0.035, 0.13, contourWave );
+
+                    // Break up the strokes so they resemble ink marks
+                    float strokeMask = smoothstep( 0.28, 0.68, inkVariation );
+
+                    // Fade contours as they get deeper
+                    float contourDepthFade = saturate( 1.0 - depthBelowCrest / max(0.1, _SideDepthFade) );
+                    float contour = contourLine * strokeMask * contourDepthFade * _SideContourStrength;
+
+                    // 3. Deep ink gradient
+                    float depthGradient = saturate( depthBelowCrest / max(0.1, _SideDepthFade) );
+                    float3 sideInkColor = lerp( _ShallowColor.rgb, _BaseColor.rgb, depthGradient );
+
+                    // 4. Subtle ink wash variation
+                    sideInkColor = lerp( sideInkColor, _AccentColor.rgb, (inkVariation - 0.5) * _SideInkNoiseStrength * 0.35 );
+
+                    // 5. Hand-drawn contour strokes
+                    sideInkColor = lerp( sideInkColor, _SideInkLineColor.rgb, saturate(contour) );
+
+                    // 6. Bright parchment-colored crest
+                    sideInkColor = lerp( sideInkColor, _CrestLineColor.rgb, saturate(rim) );
+
+                    // 7. Subtle edge illumination
+                    float fresnel = pow( saturate(1.0 - dot(normalWS, viewDirWS)), 3.0 ) * 0.12;
                     sideInkColor += _FoamColor.rgb * fresnel;
 
                     return half4(sideInkColor, 1.0);

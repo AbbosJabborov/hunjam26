@@ -40,8 +40,14 @@ Material:
     - _FresnelIntensity: 2
     - _FresnelPower: 4
     - _Metallic: 0.2
-    - _SideBandCount: 3
+    - _SideBandCount: 0
+    - _SideContourFrequency: 3.2
+    - _SideContourStrength: 0.3
     - _SideDepthFade: 2.5
+    - _SideHighlightVariation: 0.45
+    - _SideInkNoiseScale: 2.5
+    - _SideInkNoiseStrength: 0.45
+    - _SideStrokeSpeed: 0.18
     - _Smoothness: 0.92
     - _SpecularExponent: 180
     - _SpecularThreshold: 0.96
@@ -61,7 +67,7 @@ Material:
     - _WaveFreq1: 0.45
     - _WaveFreq2: 1.1
     - _WaveFreq3: 2.4
-    - _WaveHeight: 0.87
+    - _WaveHeight: 0.28
     - _WaveScale1: 0.6
     - _WaveScale2: 1.4
     - _WaveSpeed: 1.3
@@ -74,6 +80,7 @@ Material:
     - _FoamColor: {r: 0.95, g: 0.92, b: 0.84, a: 1}
     - _FresnelColor: {r: 0.8, g: 0.9, b: 1, a: 1}
     - _ShallowColor: {r: 0.09, g: 0.08, b: 0.075, a: 1}
+    - _SideInkLineColor: {r: 0.22, g: 0.18, b: 0.16, a: 1}
     - _SpecularColor: {r: 1, g: 0.98, b: 0.94, a: 1}
     - _SurfaceCrestGlow: {r: 0.7, g: 0.85, b: 1, a: 1}
   m_BuildTextureStacks: []

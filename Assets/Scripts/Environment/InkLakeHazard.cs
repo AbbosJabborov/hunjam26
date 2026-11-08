@@ -116,10 +116,10 @@ namespace Shift.Environment
                 _hasKilledThisSession = true;
                 Debug.Log($"[InkLakeHazard] Player submerged in deadly ink lake at {hitPoint}!");
 
-                // Spawn ink splatter VFX
-                if (spawnInkSplatter && InkSplatterManager.Instance != null)
+                // Spawn illustrated ink splash and droplet VFX
+                if (spawnInkSplatter)
                 {
-                    InkSplatterManager.Instance.EmitBurst(hitPoint, splatterParticleCount, splatterSpeed, Vector3.up);
+                    InkSplashEffect.Spawn(hitPoint);
                 }
 
                 // Apply lethal damage

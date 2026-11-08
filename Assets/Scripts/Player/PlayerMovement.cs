@@ -65,7 +65,7 @@ namespace Shift.Player
         public bool IsGrounded => _isGrounded;
         public bool IsTouchingWall => _isTouchingWall;
         public bool IsWallSliding => _isWallSliding;
-        public float WallNormalX => _wallNormalX;
+        public float WallNormalX => _wallNormalX != 0f ? _wallNormalX : _lastWallNormalX;
         public bool IsSliding => _isSliding;
         public Vector3 Velocity => (_rb != null ? _rb : GetComponent<Rigidbody>()).linearVelocity;
 

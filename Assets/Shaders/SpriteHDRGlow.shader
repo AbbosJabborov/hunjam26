@@ -60,6 +60,16 @@ Shader "Custom/SpriteHDRGlow"
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
 
+            #ifdef UNITY_INSTANCING_ENABLED
+                UNITY_INSTANCING_BUFFER_START(PerDrawSprite)
+                    UNITY_DEFINE_INSTANCED_PROP(float4, unity_SpriteRendererColorArray)
+                    UNITY_DEFINE_INSTANCED_PROP(float2, unity_SpriteFlipArray)
+                UNITY_INSTANCING_BUFFER_END(PerDrawSprite)
+
+                #define unity_SpriteColor  UNITY_ACCESS_INSTANCED_PROP(PerDrawSprite, unity_SpriteRendererColorArray)
+                #define unity_SpriteFlip   UNITY_ACCESS_INSTANCED_PROP(PerDrawSprite, unity_SpriteFlipArray)
+            #endif
+
             CBUFFER_START(UnityPerMaterial)
                 float4 _Color;
                 float4 _GlowColor;
@@ -75,7 +85,18 @@ Shader "Custom/SpriteHDRGlow"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                float2 flip = float2(1.0, 1.0);
+                #ifdef UNITY_INSTANCING_ENABLED
+                    flip = unity_SpriteFlip;
+                #else
+                    if (unity_SpriteProps.x != 0.0) flip.x = unity_SpriteProps.x;
+                    if (unity_SpriteProps.y != 0.0) flip.y = unity_SpriteProps.y;
+                #endif
+
+                float3 posOS = input.positionOS.xyz;
+                posOS.xy *= flip;
+
+                output.positionCS = TransformObjectToHClip(posOS);
                 output.uv = input.uv;
                 output.color = input.color * _Color * _RendererColor;
 
@@ -136,6 +157,16 @@ Shader "Custom/SpriteHDRGlow"
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
 
+            #ifdef UNITY_INSTANCING_ENABLED
+                UNITY_INSTANCING_BUFFER_START(PerDrawSprite)
+                    UNITY_DEFINE_INSTANCED_PROP(float4, unity_SpriteRendererColorArray)
+                    UNITY_DEFINE_INSTANCED_PROP(float2, unity_SpriteFlipArray)
+                UNITY_INSTANCING_BUFFER_END(PerDrawSprite)
+
+                #define unity_SpriteColor  UNITY_ACCESS_INSTANCED_PROP(PerDrawSprite, unity_SpriteRendererColorArray)
+                #define unity_SpriteFlip   UNITY_ACCESS_INSTANCED_PROP(PerDrawSprite, unity_SpriteFlipArray)
+            #endif
+
             CBUFFER_START(UnityPerMaterial)
                 float4 _Color;
                 float4 _GlowColor;
@@ -151,7 +182,18 @@ Shader "Custom/SpriteHDRGlow"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                float2 flip = float2(1.0, 1.0);
+                #ifdef UNITY_INSTANCING_ENABLED
+                    flip = unity_SpriteFlip;
+                #else
+                    if (unity_SpriteProps.x != 0.0) flip.x = unity_SpriteProps.x;
+                    if (unity_SpriteProps.y != 0.0) flip.y = unity_SpriteProps.y;
+                #endif
+
+                float3 posOS = input.positionOS.xyz;
+                posOS.xy *= flip;
+
+                output.positionCS = TransformObjectToHClip(posOS);
                 output.uv = input.uv;
                 output.color = input.color * _Color * _RendererColor;
 

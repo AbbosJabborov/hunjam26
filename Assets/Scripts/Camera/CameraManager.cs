@@ -120,6 +120,22 @@ namespace Shift.Cameras
 
         private void Start()
         {
+            if (playerTransform == null)
+            {
+                var p = GameObject.FindWithTag("Player");
+                if (p == null)
+                {
+                    var pm = Object.FindAnyObjectByType<Shift.Player.PlayerMovement>();
+                    if (pm != null) p = pm.gameObject;
+                }
+                if (p != null)
+                {
+                    playerTransform = p.transform;
+                    var hp = p.transform.Find("HeadPivot");
+                    if (hp != null) fpsCameraPivot = hp;
+                }
+            }
+
             if (playerTransform != null)
             {
                 _playerMovement = playerTransform.GetComponent<PlayerMovement>();

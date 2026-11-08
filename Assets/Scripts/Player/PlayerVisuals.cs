@@ -170,7 +170,7 @@ namespace Shift.Player
         {
             if (spriteRenderer == null) return;
 
-            // When wall sliding, orient towards or away from the wall
+            // 1. When wall sliding, orient towards or away from the wall
             if (_playerMovement != null && _playerMovement.IsWallSliding)
             {
                 // WallNormalX < 0 means wall is to the player's right (+X).
@@ -180,16 +180,32 @@ namespace Shift.Player
                 return;
             }
 
-            Vector3 vel = _rb != null ? _rb.linearVelocity : Vector3.zero;
-
-            // Flip sprite based on velocity along X axis
-            if (vel.x > 0.15f)
+            // 2. When grapple is extending towards anchor, face target anchor
+            if (_playerGrapple != null && _playerGrapple.IsExtending)
             {
-                spriteRenderer.flipX = false; // Facing right (+X)
+                float dirX = _playerGrapple.GrappleAnchor.x - transform.position.x;
+                if (Mathf.Abs(dirX) > 0.1f)
+                {
+                    spriteRenderer.flipX = dirX < 0f;
+                    return;
+                }
             }
-            else if (vel.x < -0.15f)
+
+            Vector3 vel = _rb != null ? _rb.linearVelocity : Vector3.zero;
+            Vector2 moveInput = Vector2.zero;
+            if (_playerController != null && _playerController.InputReader != null)
             {
-                spriteRenderer.flipX = true; // Facing left (-X)
+                moveInput = _playerController.InputReader.MoveInput;
+            }
+
+            // 3. Dynamic orientation based on velocity or active steering input
+            if (Mathf.Abs(vel.x) > 0.15f)
+            {
+                spriteRenderer.flipX = vel.x < 0f;
+            }
+            else if (Mathf.Abs(moveInput.x) > 0.1f)
+            {
+                spriteRenderer.flipX = moveInput.x < 0f;
             }
         }
 
