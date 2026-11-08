@@ -47,6 +47,7 @@ namespace Shift.Player
         private PlayerController _playerController;
         private Rigidbody _rb;
         private PlayerInputReader _input;
+        private PlayerGrapple _playerGrapple;
 
         private bool _isGrounded;
         private bool _isTouchingWall;
@@ -84,6 +85,7 @@ namespace Shift.Player
             _playerController = GetComponent<PlayerController>();
             _rb = GetComponent<Rigidbody>();
             _input = GetComponent<PlayerInputReader>();
+            _playerGrapple = GetComponent<PlayerGrapple>();
 
             if (groundCheckPoint == null)
             {
@@ -336,6 +338,12 @@ namespace Shift.Player
 
         private void HandleJumpInput()
         {
+            if (_playerGrapple != null && (_playerGrapple.IsSwinging || _playerGrapple.IsExtending))
+            {
+                // Grapple jump is handled by PlayerGrapple.HandleJumpWhileSwinging()
+                return;
+            }
+
             _jumpBufferTimer = jumpBufferTime;
 
             if (_coyoteTimer > 0f)
@@ -393,6 +401,12 @@ namespace Shift.Player
 
         private void FixedUpdatePlatformer()
         {
+            if (_playerGrapple != null && _playerGrapple.IsSwinging)
+            {
+                // Yield physics control to PlayerGrapple arcade swinging
+                return;
+            }
+
             Vector2 input = _input != null ? _input.MoveInput : Vector2.zero;
             Vector3 vel = _rb.linearVelocity;
 

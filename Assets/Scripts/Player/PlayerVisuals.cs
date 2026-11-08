@@ -111,7 +111,7 @@ namespace Shift.Player
             float horizontalSpeed = Mathf.Abs(vel.x);
             bool isGrounded = _playerMovement != null && _playerMovement.IsGrounded;
             bool isSliding = _playerMovement != null && _playerMovement.IsSliding;
-            bool isSwinging = _playerGrapple != null && _playerGrapple.IsSwinging;
+            bool isSwinging = _playerGrapple != null && (_playerGrapple.IsSwinging || _playerGrapple.IsExtending);
             bool isWallSliding = _playerMovement != null && _playerMovement.IsWallSliding;
 
             // Set Animator parameters if defined
